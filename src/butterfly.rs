@@ -78,7 +78,7 @@ impl CUHistogram {
     pub fn to_disk(&self, fname: &str) {
         let mut fh = File::create(fname).unwrap();
 
-        fh.write("Amplification,Frequency\n".as_bytes()).unwrap();
+        fh.write_all("Amplification,Frequency\n".as_bytes()).unwrap();
 
         for (n_reads, n_umis) in self.histogram.iter() {
             fh.write_all(format!("{},{}\n", n_reads, n_umis).as_bytes())

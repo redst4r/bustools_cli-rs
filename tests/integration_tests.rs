@@ -52,7 +52,7 @@ fn test_count_vs_bustools() {
     let c2 = count2::count(&bfolder, false);
     let elapsed_time = now.elapsed();
     println!("count2::count in in {:?}", elapsed_time);
-    assert!(c2.is_equal(&c));
+    assert_eq!(c2, c);
 
     // -------------------
     // Bustools count
@@ -129,7 +129,7 @@ fn test_count_vs_bustools() {
     //     }
     // }
 
-    assert!(cmat_kallisto.is_equal(&cmat_rust));
+    assert_eq!(cmat_kallisto, cmat_rust);
 }
 
 // #[test]
@@ -159,4 +159,21 @@ fn test_write() {
 
     let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
     write_partial_busfile(fname, outname, 1_500_000);
+}
+
+// #[test]
+fn test_count() {
+    use sprs::io::write_matrix_market;
+    // let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
+    // let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
+    let t2g_file = "/home/michi/bus_testing/transcripts_to_genes.txt";
+    let foldername = "/home/michi/bus_testing/bus_output";
+
+    let b = BusFolder::new(foldername, t2g_file);
+    let count_matrix = count(&b, false);
+
+    // write_sprs_to_file(count_matrix.matrix, "/tmp/test.mtx");
+    write_matrix_market("/tmp/test.mtx", &count_matrix.matrix).unwrap();
+
+    // count_bayesian(b)
 }

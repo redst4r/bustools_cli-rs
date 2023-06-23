@@ -219,28 +219,28 @@ mod testing {
         );
     }
 
-    #[test]
-    fn test_real_file() {
-        // pub const TEST_BUSFILE: &str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-        // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output/";
-        pub const TEST_BUSFILE: &str =
-            "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-        // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output_short/";
-        // let the_whitelist = "/home/michi/mounts/TB4drive/kallisto_resources/3M-february-2018.txt";
-        let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";
-        correct(TEST_BUSFILE, "/tmp/corrected.bus", the_whitelist)
-    }
+    // #[test]
+    // fn test_real_file() {
+    //     // pub const TEST_BUSFILE: &str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    //     // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output/";
+    //     pub const TEST_BUSFILE: &str =
+    //         "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
+    //     // pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output_short/";
+    //     // let the_whitelist = "/home/michi/mounts/TB4drive/kallisto_resources/3M-february-2018.txt";
+    //     let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";
+    //     correct(TEST_BUSFILE, "/tmp/corrected.bus", the_whitelist)
+    // }
 
-    #[test]
-    fn test_bk() {
-        let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";
-        let wl = load_whitelist(the_whitelist);
-        let mut bk: BkTree<String> = BkTree::new(my_hamming);
-        bk.insert_all(wl.into_iter());
+    // #[test]
+    // fn test_bk() {
+    //     let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";
+    //     let wl = load_whitelist(the_whitelist);
+    //     let mut bk: BkTree<String> = BkTree::new(my_hamming);
+    //     bk.insert_all(wl.into_iter());
 
-        let r = bk.find("TAACCTGAGACTCGGA".to_string(), 1);
-        println!("{:?}", r);
-    }
+    //     let r = bk.find("TAACCTGAGACTCGGA".to_string(), 1);
+    //     println!("{:?}", r);
+    // }
 }
 
 /*

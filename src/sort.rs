@@ -1,6 +1,5 @@
 //! `bustools sort` code. Sorts busfiles by CB/UMI/EC
 //! 
-//! 
 //! # Differences to bustools sort
 //! 1. bustools sort **does merge** records if they share CB/UMI/EC. This implementation does not!
 //!    We easily could though: in `sort_into_btree` just aggregate the `Vec<BusRecord>` values
@@ -15,9 +14,9 @@ use itertools::Itertools;
 use std::collections::{BTreeMap, HashMap};
 use tempfile::tempdir;
 
-
-// sorts/inserts an Iterator over records ito a BTreeMap
-// (CB,UMI,EC) -> records
+/// sorts/inserts an Iterator over records into a BTreeMap,
+/// (CB,UMI,EC) -> records
+/// This effectively sorts the records in memory
 fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     iterator: I,
 ) -> BTreeMap<(u64, u64, u32), Vec<BusRecord>> {
@@ -33,9 +32,9 @@ fn sort_into_btree<I: Iterator<Item = BusRecord>>(
 }
 
 
-/// Sort a busfile (via CB/UMI/EC) in memory!
+/// Sort a busfile (via CB/UMI/EC) in memory, using BTreeMap's internal sorting!
 /// This gets quite bad for larger files!
-/// uses BTreeMaps internal sorting
+/// 
 /// # Parameters
 /// * `busfile`: file to be sorted in memory
 /// * `outfile`: file to be sorted into
@@ -56,12 +55,14 @@ fn sort_in_memory(busfile: &str, outfile: &str) {
 /// Works via `mergesort`:
 /// 1. split the busfile into separate chunks on disk: Temporary directory is used
 /// 2. sort the chunks (in memory) individually
-/// 3. merge the chunks ()
+/// 3. merge the chunks: iterate over all chunks in parallel via [bustools::merger] 
+/// and aggregate records that might have been split across chunks
 /// 
 /// # Parameters:
 /// * `busfile`: file to be sorted
 /// * `outfile`: file to be sorted into
-/// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point)
+/// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point). 
+///    `chunksize=10_000_000` is roughly a 300MB chunk on disk
 /// 
 /// 
 pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
@@ -93,6 +94,7 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     println!("Merging {} chunks", chunkfiles.len());
     let mut writer = BusWriter::new(outfile, header);
 
+    // gather the individual iterators for each chunk
     let mut iterator_map = HashMap::new();
     for file in chunkfiles.iter() {
         let iter = BusReader::new(file).groupby_cbumi();
@@ -222,14 +224,13 @@ mod test {
             writer.write_record(&r);
         }
         drop(writer); //make sure everything is written
-                      // sort it
         
+        // sort it
         let sortec_path = dir.path().join("test_bus_sort_random_sorted.bus");
         let sorted_out =sortec_path.to_str().unwrap();
         sort_on_disk(&outfile,sorted_out , chunksize);
 
         // check if sorted
-
         let b = BusReader::new(sorted_out);
         let n: usize = b.groupby_cbumi().map(|(_, rlist)| rlist.len()).sum();
         assert_eq!(n, n_records)

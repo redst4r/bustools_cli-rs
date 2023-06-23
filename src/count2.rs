@@ -175,7 +175,7 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
         // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
 
         let countmatrix = countmap_to_matrix(&all_expression_vector, genelist_vector);
-        println!("{}", countmatrix.to_string());
+        println!("{}", countmatrix);
         println!("finished iteration {}", i)
     }
 }
@@ -269,7 +269,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     let countmatrix = countmap_to_matrix(&all_expression_vector, genelist_vector);
 
-    println!("{}", countmatrix.to_string());
+    println!("{}", countmatrix);
 
     countmatrix
 }

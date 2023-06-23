@@ -26,7 +26,7 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Write}, fmt,
 };
 
 use sprs::{
@@ -38,6 +38,7 @@ use sprs::{
 ///
 /// Cells and genes are indexed via their string reprensentation
 ///
+#[derive(Debug)]
 pub struct CountMatrix {
     /// sparse count matrix
     pub matrix: sprs::CsMat<i32>,
@@ -61,22 +62,9 @@ impl CountMatrix {
         h1
     }
 
-    /// comparing countmatrices. True if they represnet the same cb/gene counts irrespective of ordering
-    pub fn is_equal(&self, other: &Self) -> bool {
-        // the tricky to be invariant to ordering: transform to hashmap
-        let h1 = self.to_map();
-        let h2 = other.to_map();
-        h1 == h2
-    }
-
     /// get the matrix's shape (nrows, ncols)
     pub fn get_shape(&self) -> (usize, usize) {
         self.matrix.shape()
-    }
-
-    /// String repr
-    pub fn to_string(&self) -> String {
-        format!("Shape: {:?};  nnz {}", self.get_shape(), self.matrix.nnz())
     }
 
     /// load a countmatrix from disk (kallisto format: mtx + barcodes.txt + genes)
@@ -110,12 +98,13 @@ impl CountMatrix {
         CountMatrix::from_disk(mfile, cbfile, genefile)
     }
 
-    /// write the matrix to disk in MatrixMarket format + cell and gene metadata (just like kallisto)
+    /// write the matrix to disk in 
+    /// [MatrixMarket format](https://math.nist.gov/MatrixMarket/formats.html) + cell and gene metadata (just like kallisto)
     ///
     /// creates 3 files:
-    /// * gene.mtx: the sparse matrix
-    /// * gene.barcodes.txt: String representation fo the cell barcodes
-    /// * gene.genes.txt: Gene names
+    /// * `gene.mtx`: the sparse matrix
+    /// * `gene.barcodes.txt`: String representation fo the cell barcodes
+    /// * `gene.genes.txt`: Gene names
     pub fn write(&self, foldername: &str) {
         let mfile = format!("{}/gene.mtx", foldername);
         let cbfile = format!("{}/gene.barcodes.txt", foldername);
@@ -136,6 +125,22 @@ impl CountMatrix {
     }
 }
 
+impl PartialEq for CountMatrix {
+    /// comparing countmatrices. True if they represnet the same cb/gene counts irrespective of ordering
+    fn eq(&self, other: &Self) -> bool {
+        // the tricky to be invariant to ordering: transform to hashmap
+        let h1 = self.to_map();
+        let h2 = other.to_map();
+        h1 == h2    }
+}
+impl Eq for CountMatrix {}
+
+impl fmt::Display for CountMatrix {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Shape: {:?};  nnz {}", self.get_shape(), self.matrix.nnz())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use bustools::{
@@ -144,7 +149,7 @@ mod test {
     use crate::count2::countmap_to_matrix;
     use ndarray::arr2;
     use std::collections::HashMap;
-
+    use tempfile::tempdir;
     use super::CountMatrix;
 
     #[test]
@@ -182,28 +187,29 @@ mod test {
         countmap.insert((CB(1), GeneId(1)), 5);
 
         let gene_vector = vec![Genename("geneA".to_string()), Genename("geneB".to_string())];
-
         let cmat = countmap_to_matrix(&countmap, gene_vector);
 
-        let path = "/tmp/bustools_test_read_write";
-        if !std::path::Path::new(&path).exists() {
-            std::fs::create_dir(path).unwrap();
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("bustools_test_read_write");
+        if !path.exists() {
+            std::fs::create_dir(&path).unwrap();
         }
+        let tmpfoldername = path.to_str().unwrap();
 
-        cmat.write(path);
+        cmat.write(tmpfoldername);
 
         let cmat2 = CountMatrix::from_disk(
-            &format!("{}/gene.mtx", path),
-            &format!("{}/gene.barcodes.txt", path),
-            &format!("{}/gene.genes.txt", path),
+            &format!("{}/gene.mtx", tmpfoldername),
+            &format!("{}/gene.barcodes.txt", tmpfoldername),
+            &format!("{}/gene.genes.txt", tmpfoldername),
         );
 
-        assert!(cmat.is_equal(&cmat2));
+        assert!(cmat == cmat2);
     }
 
     #[test]
     fn test_countmatrix_equal() {
-        //testing the .is_equal function, which should be order invariant (doesnt matter how genes are ordered)
+        //testing the Eq implementation, which should be order invariant (doesnt matter how genes are ordered)
 
         // two cells two genes
         // first cell has both genes
@@ -231,6 +237,6 @@ mod test {
         println!("{:?}", cmat1.to_map());
         println!("{:?}", cmat2.to_map());
 
-        assert!(cmat1.is_equal(&cmat2))
+        assert!(cmat1 == cmat2);
     }
 }

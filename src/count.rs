@@ -110,10 +110,10 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     genelist_vector2.sort();
 
-    assert!(genelist_vector2.contains(&&Genename("ENSG00000000003.14".to_string())));
+    // assert!(genelist_vector2.contains(&&Genename("ENSG00000000003.14".to_string())));
 
     let countmatrix = expression_vectors_to_matrix(all_expression_vector, genelist_vector2);
-    println!("{}", countmatrix.to_string());
+    println!("{}", countmatrix);
 
     countmatrix
 }
@@ -219,29 +219,12 @@ fn expression_vectors_to_matrix(
 mod test {
     use super::count;
     use bustools::{
-        consistent_genes::{Ec2GeneMapper, Genename, EC},
-        io::{BusFolder, BusRecord},
+        consistent_genes::{Ec2GeneMapper, Genename, EC, CB, GeneId},
+        io::{BusFolder, BusRecord, setup_busfile},
         utils::vec2set,
     };
-    use crate::count::records_to_expression_vector;
+    use crate::{count::records_to_expression_vector, count2::countmap_to_matrix};
     use std::collections::{HashMap, HashSet};
-
-    // #[test]
-    fn test_itt() {
-        use sprs::io::write_matrix_market;
-        // let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
-        // let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
-        let t2g_file = "/home/michi/bus_testing/transcripts_to_genes.txt";
-        let foldername = "/home/michi/bus_testing/bus_output";
-
-        let b = BusFolder::new(foldername, t2g_file);
-        let count_matrix = count(&b, false);
-
-        // write_sprs_to_file(count_matrix.matrix, "/tmp/test.mtx");
-        write_matrix_market("/tmp/test.mtx", &count_matrix.matrix).unwrap();
-
-        // count_bayesian(b)
-    }
 
     #[test]
     fn test_records_to_expression_vector() {
@@ -304,5 +287,55 @@ mod test {
                 (Genename("G2".to_string()), 1)
             ])
         );
+    }
+
+    #[test]
+    fn test_count() {
+        let ec0: HashSet<Genename> =
+            vec2set(vec![Genename("G1".to_string()), Genename("G2".to_string())]);
+        let ec1: HashSet<Genename> = vec2set(vec![Genename("G1".to_string())]);
+        let ec2: HashSet<Genename> = vec2set(vec![Genename("G2".to_string())]);
+        let ec3: HashSet<Genename> =
+            vec2set(vec![Genename("G1".to_string()), Genename("G2".to_string())]);
+
+        let ec_dict: HashMap<EC, HashSet<Genename>> = HashMap::from([
+            (EC(0), ec0.clone()),
+            (EC(1), ec1.clone()),
+            (EC(2), ec2.clone()),
+            (EC(3), ec3.clone()),
+        ]);
+
+        let es = Ec2GeneMapper::new(ec_dict);
+        
+        // Cell 1: G1: 2. G2:0
+        // those three records are consistent with G1
+        let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
+        let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
+        // // those records are consistent with G1
+        let r3 = BusRecord { CB: 0, UMI: 5, EC: 1, COUNT: 2, FLAG: 0 };
+        let r4 = BusRecord { CB: 0, UMI: 5, EC: 0, COUNT: 2, FLAG: 0 };
+        
+        //Cell 2: G1: 0, G2: 1
+        // first record is unique to G2
+        let r5 = BusRecord { CB: 1, UMI: 4, EC: 2, COUNT: 2, FLAG: 0 };
+        // second record is not unique to G2
+        let r6 = BusRecord { CB: 1, UMI: 5, EC: 3, COUNT: 2, FLAG: 0 };
+
+        let records = vec![r1,r2,r3,r4,r5,r6];
+        let (_bname, _dir) = setup_busfile(&records);
+
+        let bfolder = BusFolder { foldername: _dir.path().to_str().unwrap().to_owned() , ec2gene: es};
+        let cmat = count(&bfolder, false);
+
+        let exp: HashMap<_, _> = vec![
+            ((CB(0), GeneId(0)), 2),
+            ((CB(1), GeneId(1)), 1),
+        ].into_iter().collect();
+        let exp_cmat = countmap_to_matrix(
+            &exp, 
+            vec![Genename("G1".to_string()), Genename("G2".to_string())]
+        );
+
+        assert_eq!(cmat, exp_cmat);
     }
 }

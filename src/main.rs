@@ -15,24 +15,14 @@
 //! Check the CLI help for arguments.
 //! 
 
-
 use clap::{self, Args, Parser, Subcommand};
 use itertools::Itertools;
 use bustools::consistent_genes::{GeneId, Genename, EC};
-// use rand::distributions::Uniform;
-// use bustools::butterfly::make_ecs;
-// use bustools::consistent_genes::{GeneId, Genename, EC};
-// use bustools::correct;
-// use bustools::inspect::inspect;
 use bustools::io::{BusHeader, BusReader, BusFolder};
 use bustools::iterators::CellGroupIterator;
-// use bustools::sort::sort_on_disk;
 use bustools::utils::int_to_seq;
-// use bustools::{busmerger};
-// use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-// use std::time::Instant;
 
 
 #[derive(Parser)]
@@ -224,14 +214,13 @@ fn main() {
 
             let c = count2::count(&bfolder, args.ignoremm);
             c.write(&cli.output);
-            // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
 
         MyCommand::resolve_ec(args) => {
             println!("Doing resolve");
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
             let mut genes: Vec<&GeneId> =
-                bfolder.ec2gene.get_genes(EC(args.ec)).into_iter().collect();
+                bfolder.ec2gene.get_genes(EC(args.ec)).iter().collect();
             genes.sort();
             println!("EC {} -> {:?}", args.ec, genes);
 
@@ -271,7 +260,7 @@ fn main() {
             }
         }
         MyCommand::sort(args) => {
-            let chunksize = 10_000_000; // roughly 300MB size
+            let chunksize = 10_000_000; // roughly 300MB on disk
             sort::sort_on_disk(&args.inbus, &cli.output, chunksize)
         }
         MyCommand::butterfly(args) => {
