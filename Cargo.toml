@@ -1,0 +1,37 @@
+[package]
+name = "rustbustools_cli"
+version = "0.1.0"
+edition = "2021"
+license = " GPLv3"
+description = "Rust reimplementation of bustools for scRNAseq processing"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.2.1"
+# flate2 = "1.0"
+# lazy_static = "1"
+# fastq = "0.6"
+indicatif = "0.17"
+clap = { version = "4", features = ["derive"] }
+sprs = "0.11"
+regex = "1"
+statrs = "0.16"
+rand = "0.8"
+probability="0.20"  # for faster Binomial Sampling, using inverse pdf
+itertools="0.10.5"
+tempfile="3.3.0"
+bktree="1.0.1"
+# crossbeam = "0.8"
+# flume = "0.10"
+# bustools = { path = "/home/michi/Dropbox/rustbustools" }
+# bustools = { git = "https://github.com/redst4r/rustbustools.git" }
+bustools = "0.7"
+
+[dev-dependencies]
+criterion = "0.5"
+ndarray="0.15.6"
+
+# [[bench]]
+# name = "my_benchmark"
+# harness = false
