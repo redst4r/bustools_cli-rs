@@ -4,15 +4,15 @@
 //! "approximate" matching
 //!
 #![deny(missing_docs)]
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    io::{BufRead, BufReader},
-};
 use bktree::BkTree;
 use bustools::{
     io::{BusReader, BusWriter},
     utils::{get_progressbar, int_to_seq, seq_to_int},
+};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    io::{BufRead, BufReader},
 };
 
 const MAX_DIST: isize = 1; // maximum distance where we consider a barcode correctable

@@ -25,8 +25,9 @@
 //! ```
 use std::{
     collections::HashMap,
+    fmt,
     fs::File,
-    io::{BufRead, BufReader, Write}, fmt,
+    io::{BufRead, BufReader, Write},
 };
 
 use sprs::{
@@ -98,7 +99,7 @@ impl CountMatrix {
         CountMatrix::from_disk(mfile, cbfile, genefile)
     }
 
-    /// write the matrix to disk in 
+    /// write the matrix to disk in
     /// [MatrixMarket format](https://math.nist.gov/MatrixMarket/formats.html) + cell and gene metadata (just like kallisto)
     ///
     /// creates 3 files:
@@ -131,26 +132,30 @@ impl PartialEq for CountMatrix {
         // the tricky to be invariant to ordering: transform to hashmap
         let h1 = self.to_map();
         let h2 = other.to_map();
-        h1 == h2    }
+        h1 == h2
+    }
 }
 impl Eq for CountMatrix {}
 
 impl fmt::Display for CountMatrix {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Shape: {:?};  nnz {}", self.get_shape(), self.matrix.nnz())
+        write!(
+            f,
+            "Shape: {:?};  nnz {}",
+            self.get_shape(),
+            self.matrix.nnz()
+        )
     }
 }
 
 #[cfg(test)]
 mod test {
-    use bustools::{
-        consistent_genes::{GeneId, Genename, CB},
-    };
+    use super::CountMatrix;
     use crate::count2::countmap_to_matrix;
+    use bustools::consistent_genes::{GeneId, Genename, CB};
     use ndarray::arr2;
     use std::collections::HashMap;
     use tempfile::tempdir;
-    use super::CountMatrix;
 
     #[test]
     fn test_countmatrix() {
@@ -165,8 +170,7 @@ mod test {
         let cmat = countmap_to_matrix(&countmap, gene_vector);
 
         let dense_mat = cmat.matrix.to_dense();
-        let expected = arr2(&[[ 10, 1],
-                              [ 0,  5]]);
+        let expected = arr2(&[[10, 1], [0, 5]]);
         assert_eq!(dense_mat, expected);
 
         assert_eq!(

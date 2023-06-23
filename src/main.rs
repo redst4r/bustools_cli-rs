@@ -1,29 +1,28 @@
 //! # bustools_cli
-//! 
+//!
 //! The command line interface for my rust version of [bustools](https://github.com/BUStools/bustools).
-//! 
+//!
 //! At this point, it's **far from complete and correct**, but rather a project to learn rust.
-//! Most functionality comes from a companion crate, `bustools`. 
-//! 
+//! Most functionality comes from a companion crate, `bustools`.
+//!
 //! # CLI
 //! `bustools <command>`
 //! * `correct`: Correct busfiles via a whitelist
 //! * `sort`: Sort the busfile by CB/UMI/EC
 //! * `count`: Create a count-matrix (CB vs gene)
 //! * `inspect`: Basic stats about a busfile (#records, #CBs etc..)
-//! 
+//!
 //! Check the CLI help for arguments.
-//! 
+//!
 
-use clap::{self, Args, Parser, Subcommand};
-use itertools::Itertools;
 use bustools::consistent_genes::{GeneId, Genename, EC};
-use bustools::io::{BusHeader, BusReader, BusFolder};
+use bustools::io::{BusFolder, BusHeader, BusReader};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::int_to_seq;
+use clap::{self, Args, Parser, Subcommand};
+use itertools::Itertools;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -53,7 +52,6 @@ enum MyCommand {
 /// correct CBs with whitelist
 #[derive(Args)]
 struct CorrectArgs {
-
     /// Input busfile
     #[clap(long = "ifile", short = 'i')]
     inbus: String,
@@ -150,14 +148,13 @@ struct InspectArgs {
     inbus: String,
 }
 
+use rustbustools_cli::busmerger;
+use rustbustools_cli::butterfly;
+use rustbustools_cli::correct;
 use rustbustools_cli::count;
 use rustbustools_cli::count2;
-use rustbustools_cli::butterfly;
 use rustbustools_cli::inspect;
 use rustbustools_cli::sort;
-use rustbustools_cli::correct;
-use rustbustools_cli::busmerger;
-
 
 fn main() {
     // use bustools::multinomial::{test_multinomial_stats, test_multinomial, multinomial_sample};
@@ -219,8 +216,7 @@ fn main() {
         MyCommand::resolve_ec(args) => {
             println!("Doing resolve");
             let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let mut genes: Vec<&GeneId> =
-                bfolder.ec2gene.get_genes(EC(args.ec)).iter().collect();
+            let mut genes: Vec<&GeneId> = bfolder.ec2gene.get_genes(EC(args.ec)).iter().collect();
             genes.sort();
             println!("EC {} -> {:?}", args.ec, genes);
 

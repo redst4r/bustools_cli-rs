@@ -1,27 +1,27 @@
 //! `butterfly` provides quanification of amplification for a kallisto-bus scRNAseq experiment
-//! 
+//!
 //! # Introduction
 //! In scRNAseq, each mRNA is tagged uniquely (up to random collision) with CB+UMI.
-//! Those are then amplified and sequenced. 
+//! Those are then amplified and sequenced.
 //! If we see the same CB+UMI in multiple reads, we conclude that they are copies of the same original mRNA
-//! For each unique mRNA we quantify its amplification factor and record the absolute 
-//! frequency of the ampification (i.e. how often do we see a 5x amplification, 
+//! For each unique mRNA we quantify its amplification factor and record the absolute
+//! frequency of the ampification (i.e. how often do we see a 5x amplification,
 //! 5reads for the same CB+UMI)
-//! 
-//! This module quantifies the amplifcation (very fast!). 
+//!
+//! This module quantifies the amplifcation (very fast!).
 //! Further processing (where speed is not essential) is typically done in python,
 //! e.g. saturation curves, unseen species estimators.
-//! 
-//! 
+//!
+//!
 //! # Unseen species
 //! Considering the CB+UMI as `species` and the reads as `observations`, this relates to the `unseen species` problem
 //! How many unobserved `species` (CB+UMI) are there in the library given the amplification profile we've seen so far
 //! While the module doesn't provide an unseen species estimator, it can easily be build on the [CUHistogram]
-//! 
+//!
 //! # References
-//! The whole concept is described (amongst other things) in this 
+//! The whole concept is described (amongst other things) in this
 //! [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-021-02386-z)
-//! 
+//!
 //! # Examples
 //! ```rust, no_run
 //! # use bustools::io::BusFolder;
@@ -34,14 +34,18 @@
 //! // save the resulting frequency of frequency histogram to disk
 //! // can be read in python for further processing (e.g. plot the saturation curves)
 //! h.to_disk("/tmp/CU.csv")
-//! ``` 
+//! ```
 
 #![deny(missing_docs)]
-use bustools::{io::BusFolder, iterators::CbUmiGroupIterator, consistent_genes::{find_consistent, MappingResult}};
+use bustools::{
+    consistent_genes::{find_consistent, MappingResult},
+    io::BusFolder,
+    iterators::CbUmiGroupIterator,
+};
 use std::{collections::HashMap, fs::File, io::Write};
 
 /// The basic unit of this module, a frequency of frequency histogram
-/// 
+///
 /// Records how many copies (reads) per mRNA (CB-UMI) we see in a busfile.
 /// Should be constructed with [make_ecs]
 #[derive(Debug)]
@@ -78,7 +82,8 @@ impl CUHistogram {
     pub fn to_disk(&self, fname: &str) {
         let mut fh = File::create(fname).unwrap();
 
-        fh.write_all("Amplification,Frequency\n".as_bytes()).unwrap();
+        fh.write_all("Amplification,Frequency\n".as_bytes())
+            .unwrap();
 
         for (n_reads, n_umis) in self.histogram.iter() {
             fh.write_all(format!("{},{}\n", n_reads, n_umis).as_bytes())
@@ -94,7 +99,6 @@ impl CUHistogram {
 ///     - false: just ignore and lump the reads together irresepctive of EC
 ///     - true: check if they ECs are consistent (if yes, count as aggregate), if no, discard
 pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
-
     let mut h: HashMap<usize, usize> = HashMap::new();
 
     let mut multimapped = 0;
@@ -102,7 +106,7 @@ pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
     let mut total = 0;
 
     for ((_cb, _umi), recordlist) in busfolder.get_iterator().groupby_cbumi() {
-        total+=1;
+        total += 1;
         if collapse_ec {
             // check if we can uniquely match those read to the same gene
             // if not its either multimapped or inconsistent (could be a CB/UMI collision)
@@ -112,9 +116,9 @@ pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
                     let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
                     let freq = h.entry(nreads).or_insert(0);
                     *freq += 1;
-                },
-                MappingResult::Multimapped(_) => {multimapped+=1},
-                MappingResult::Inconsistent => {inconsistent+=1},
+                }
+                MappingResult::Multimapped(_) => multimapped += 1,
+                MappingResult::Inconsistent => inconsistent += 1,
             }
         } else {
             let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
@@ -123,16 +127,25 @@ pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
         }
     }
 
-    println!("Total CB-UMI {}, Multimapped {} ({}%), Discarded/Inconsistent {} ({}%)", total, multimapped, (multimapped as f32)/ (total as f32), inconsistent, (inconsistent as f32)/ (total as f32));
+    println!(
+        "Total CB-UMI {}, Multimapped {} ({}%), Discarded/Inconsistent {} ({}%)",
+        total,
+        multimapped,
+        (multimapped as f32) / (total as f32),
+        inconsistent,
+        (inconsistent as f32) / (total as f32)
+    );
     CUHistogram { histogram: h }
 }
 
 #[cfg(test)]
 mod testing {
-    use crate::{
-        butterfly::{make_ecs, CUHistogram},
+    use crate::butterfly::{make_ecs, CUHistogram};
+    use bustools::{
+        consistent_genes::{Ec2GeneMapper, Genename, EC},
+        io::{BusFolder, BusRecord},
+        utils::vec2set,
     };
-    use bustools::{io::{BusFolder, BusRecord}, consistent_genes::{Genename, EC, Ec2GeneMapper}, utils::vec2set};
 
     use statrs::assert_almost_eq;
     use std::collections::{HashMap, HashSet};
@@ -174,7 +187,7 @@ mod testing {
         ]);
         let es = Ec2GeneMapper::new(ec_dict);
 
-        // two inconsitent records, should be ifnored?! 
+        // two inconsitent records, should be ifnored?!
         let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
         let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
         // several single records
@@ -198,17 +211,16 @@ mod testing {
         ];
 
         let (_busname, _dir) = bustools::io::setup_busfile(&records);
-        let b = BusFolder { foldername: _dir.path().to_str().unwrap().to_owned(), ec2gene: es };
+        let b = BusFolder {
+            foldername: _dir.path().to_str().unwrap().to_owned(),
+            ec2gene: es,
+        };
 
- 
         // collapsing ECS
         let h = make_ecs(&b, true);
-        let expected: HashMap<usize, usize> = vec![
-            (12, 1),
-            (2, 2),
-            (4, 1)].into_iter().collect();
-        
-        assert_eq!(h.histogram, expected );
+        let expected: HashMap<usize, usize> = vec![(12, 1), (2, 2), (4, 1)].into_iter().collect();
+
+        assert_eq!(h.histogram, expected);
 
         // not collapsing ECs
         let h = make_ecs(&b, false);
@@ -216,8 +228,11 @@ mod testing {
             (12, 1),
             (14, 1), // this one is from the two inconsistent r1,r2
             (2, 2),
-            (4, 1)].into_iter().collect();
-        
-        assert_eq!(h.histogram, expected );
-    }     
+            (4, 1),
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(h.histogram, expected);
+    }
 }

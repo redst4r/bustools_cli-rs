@@ -77,11 +77,10 @@ mod tests {
         let (input1, _dir1) = setup_busfile(&v1); //input1
         let (input2, _dir2) = setup_busfile(&v2); // input2
 
-
         let output1_path = _dir1.path().join("merge1_out.bus");
-        let output1 =output1_path.to_str().unwrap();
+        let output1 = output1_path.to_str().unwrap();
         let output2_path = _dir2.path().join("merge2_out.bus");
-        let output2 =output2_path.to_str().unwrap();
+        let output2 = output2_path.to_str().unwrap();
 
         merge_busfiles_on_overlap(&input1, &input2, output1, output2);
 

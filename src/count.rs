@@ -1,5 +1,5 @@
 //! Recreating `bustools count` to aggregate a busfile into a count-matrix
-//! 
+//!
 //! This turns a busfolder into a count matrix.
 //!
 //! The strategy:
@@ -8,8 +8,8 @@
 //! 2. Determine ALL genes: from the EC2Gene file
 //! 3. turn into a big sparse [crate::countmatrix::CountMatrix] via `expression_vectors_to_matrix()`
 
-use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB};
 use crate::countmatrix::CountMatrix;
+use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB};
 use bustools::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::{get_progressbar, int_to_seq};
@@ -59,17 +59,15 @@ fn count_bayesian(bfolder: BusFolder) {
     // println!("{:?}", n[0]);
 }
 
-
 /// busfile to count matrix, analogous to "bustools count"
 /// ## Parameters
 /// * bfolder: Busfolder (containing busfile, matric.ec and transcripts.txt) to count
-/// *  ignore_multimapped: 
+/// *  ignore_multimapped:
 ///     if true, discard CB/UMIs that have multipel records with different EC
-///     if false: Try to consolidate those records: Different fragments from the same mRNA might map differently, 
+///     if false: Try to consolidate those records: Different fragments from the same mRNA might map differently,
 ///         e.g some parts of the mRNA are ambigous (mapping to more than one gene), but others might be unique
 ///     Kallisto operates with `ignore_multimapped=false`
 pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
-
     let cb_iter = bfolder.get_iterator().groupby_cb();
 
     println!("determine size of iterator");
@@ -164,15 +162,12 @@ fn records_to_expression_vector(
     expression_vector
 }
 
-
-
 /// turn an collection of expression vectors (from many cells)
 /// into a sparse count matrix
 fn expression_vectors_to_matrix(
     all_expression_vector: HashMap<CB, ExpressionVector>,
     genelist: Vec<&Genename>,
 ) -> CountMatrix {
-
     // sparse matrix indices
     let mut ii: Vec<usize> = Vec::new();
     let mut jj: Vec<usize> = Vec::new();
@@ -205,8 +200,7 @@ fn expression_vectors_to_matrix(
         cbs.push(*cb)
     }
 
-    let c: sprs::TriMat<i32> =
-        sprs::TriMat::from_triplets((cbs.len(), genelist.len()), ii, jj, vv);
+    let c: sprs::TriMat<i32> = sprs::TriMat::from_triplets((cbs.len(), genelist.len()), ii, jj, vv);
     let b: sprs::CsMat<_> = c.to_csr();
 
     let cbs_seq: Vec<String> = cbs.into_iter().map(|x| int_to_seq(x.0, 16)).collect();
@@ -218,12 +212,12 @@ fn expression_vectors_to_matrix(
 #[cfg(test)]
 mod test {
     use super::count;
+    use crate::{count::records_to_expression_vector, count2::countmap_to_matrix};
     use bustools::{
-        consistent_genes::{Ec2GeneMapper, Genename, EC, CB, GeneId},
-        io::{BusFolder, BusRecord, setup_busfile},
+        consistent_genes::{Ec2GeneMapper, GeneId, Genename, CB, EC},
+        io::{setup_busfile, BusFolder, BusRecord},
         utils::vec2set,
     };
-    use crate::{count::records_to_expression_vector, count2::countmap_to_matrix};
     use std::collections::{HashMap, HashSet};
 
     #[test]
@@ -306,7 +300,7 @@ mod test {
         ]);
 
         let es = Ec2GeneMapper::new(ec_dict);
-        
+
         // Cell 1: G1: 2. G2:0
         // those three records are consistent with G1
         let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
@@ -314,26 +308,28 @@ mod test {
         // // those records are consistent with G1
         let r3 = BusRecord { CB: 0, UMI: 5, EC: 1, COUNT: 2, FLAG: 0 };
         let r4 = BusRecord { CB: 0, UMI: 5, EC: 0, COUNT: 2, FLAG: 0 };
-        
+
         //Cell 2: G1: 0, G2: 1
         // first record is unique to G2
         let r5 = BusRecord { CB: 1, UMI: 4, EC: 2, COUNT: 2, FLAG: 0 };
         // second record is not unique to G2
         let r6 = BusRecord { CB: 1, UMI: 5, EC: 3, COUNT: 2, FLAG: 0 };
 
-        let records = vec![r1,r2,r3,r4,r5,r6];
+        let records = vec![r1, r2, r3, r4, r5, r6];
         let (_bname, _dir) = setup_busfile(&records);
 
-        let bfolder = BusFolder { foldername: _dir.path().to_str().unwrap().to_owned() , ec2gene: es};
+        let bfolder = BusFolder {
+            foldername: _dir.path().to_str().unwrap().to_owned(),
+            ec2gene: es,
+        };
         let cmat = count(&bfolder, false);
 
-        let exp: HashMap<_, _> = vec![
-            ((CB(0), GeneId(0)), 2),
-            ((CB(1), GeneId(1)), 1),
-        ].into_iter().collect();
+        let exp: HashMap<_, _> = vec![((CB(0), GeneId(0)), 2), ((CB(1), GeneId(1)), 1)]
+            .into_iter()
+            .collect();
         let exp_cmat = countmap_to_matrix(
-            &exp, 
-            vec![Genename("G1".to_string()), Genename("G2".to_string())]
+            &exp,
+            vec![Genename("G1".to_string()), Genename("G2".to_string())],
         );
 
         assert_eq!(cmat, exp_cmat);

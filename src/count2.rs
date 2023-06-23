@@ -1,6 +1,8 @@
 //! This turns a busfolder into a count matrix, slightly different strategy than [crate::count]. Not sure which is fsater
-use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, GeneId, Genename, CB, MappingResult};
 use crate::countmatrix::CountMatrix;
+use bustools::consistent_genes::{
+    find_consistent, Ec2GeneMapper, GeneId, Genename, MappingResult, CB,
+};
 use bustools::io::{BusFolder, BusRecord};
 use bustools::iterators::CbUmiGroupIterator;
 use bustools::multinomial::multinomial_sample;
@@ -53,10 +55,7 @@ pub fn countmap_to_matrix(
 
     let b: sprs::CsMat<_> = c.to_csr();
 
-    let cbs_seq: Vec<String> = all_cbs
-        .into_iter()
-        .map(|x| int_to_seq(x.0, 16))
-        .collect();
+    let cbs_seq: Vec<String> = all_cbs.into_iter().map(|x| int_to_seq(x.0, 16)).collect();
     // let gene_seq: Vec<String> = gene_vector.into_iter().map(|x|x.clone()).collect();
     let gene_seq: Vec<String> = gene_vector.into_iter().map(|x| x.0).collect(); //not sure if this does anything
 
@@ -71,7 +70,10 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
     let now = Instant::now();
     let total_records = bfolder.get_cbumi_size();
     let elapsed_time: std::time::Duration = now.elapsed();
-    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
+    println!(
+        "determined size of iterator {} in {:?}",
+        total_records, elapsed_time
+    );
 
     let elapsed_time = now.elapsed();
     println!(
@@ -118,15 +120,21 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
         for ((cb, _umi), rlist) in cbumi_iter {
             // inject the sampled numbers into the records
 
-            let indices = current_record_counter..current_record_counter+rlist.len();
-            let injected_counts: Vec<u32> = indices.map(|idx| *new_count_sample.index(idx) as u32 ).collect(); // wrning f64->u32
-            // let mut injected_records: Vec<BusRecord> = Vec::with_capacity(rlist.len());
+            let indices = current_record_counter..current_record_counter + rlist.len();
+            let injected_counts: Vec<u32> = indices
+                .map(|idx| *new_count_sample.index(idx) as u32)
+                .collect(); // wrning f64->u32
+                            // let mut injected_records: Vec<BusRecord> = Vec::with_capacity(rlist.len());
             let mut injected_records: Vec<BusRecord> = rlist.clone();
 
             for i in 0..injected_records.len() {
                 // let mut r = injected_records.get_mut(i).expect(&format!("injected_records {}", i));
-                let mut r = injected_records.get_mut(i).unwrap_or_else(|| panic!("injected_records {}", i));
-                let c = injected_counts.get(i).unwrap_or_else(|| panic!("injected_counts {}", i));
+                let mut r = injected_records
+                    .get_mut(i)
+                    .unwrap_or_else(|| panic!("injected_records {}", i));
+                let c = injected_counts
+                    .get(i)
+                    .unwrap_or_else(|| panic!("injected_counts {}", i));
                 r.COUNT = *c;
             }
 
@@ -148,8 +156,10 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
                     let current_count = all_expression_vector.entry(key).or_insert(0);
                     *current_count += 1;
                     n_mapped += 1;
-                },
-                MappingResult::Multimapped(_) | MappingResult::Inconsistent => n_multi_inconsistent += 1,
+                }
+                MappingResult::Multimapped(_) | MappingResult::Inconsistent => {
+                    n_multi_inconsistent += 1
+                }
             }
 
             if counter % 1_000_000 == 0 {
@@ -189,21 +199,20 @@ fn count_from_record_list(
     // which would yield a signel count
 
     // watch out for the convoluted logic with ignore_multimapped!!
-    
+
     if ignore_multimapped {
         // means: If the records map to more than one gene, just treat as unmappable
         match records.len() {
-            1 => find_consistent(records, egmapper),  // single record, still has to resolve to a single gene!
+            1 => find_consistent(records, egmapper), // single record, still has to resolve to a single gene!
             0 => panic!(),
-            _ => MappingResult::Inconsistent  // if theres more than one record just skip (we dont even try to resolve)
+            _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
         }
     } else {
-        find_consistent(records, egmapper) 
+        find_consistent(records, egmapper)
     }
 }
 
-
-/// count the busfile in the given folder, see [crate::count::count] 
+/// count the busfile in the given folder, see [crate::count::count]
 pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
@@ -217,7 +226,10 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     let now = Instant::now();
     let total_records = bfolder.get_cbumi_size();
     let elapsed_time: std::time::Duration = now.elapsed();
-    println!("determined size of iterator {} in {:?}", total_records, elapsed_time);
+    println!(
+        "determined size of iterator {} in {:?}",
+        total_records, elapsed_time
+    );
 
     // CB,gene_id -> count
     let mut all_expression_vector: HashMap<(CB, GeneId), usize> = HashMap::new();
@@ -231,14 +243,13 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     for (counter, ((cb, _umi), record_list)) in cbumi_iter.enumerate() {
         // try to map the records of this CB/UMI into a single gene
         // if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
-        match count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
-        {
+        match count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped) {
             MappingResult::SingleGene(g) => {
                 let key = (CB(cb), g);
                 let current_count = all_expression_vector.entry(key).or_insert(0);
                 *current_count += 1;
                 n_mapped += 1;
-            },
+            }
             MappingResult::Multimapped(_) | MappingResult::Inconsistent => {
                 // multimapped, or not consistently mapped
                 n_multi_inconsistent += 1;
@@ -248,7 +259,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
                 // let cgeneids= find_consistent(&record_list, &bfolder.ec2gene);
                 // let cgenes: Vec<_> = cgeneids.iter().map(|gid| bfolder.ec2gene.resolve_gene_id(*gid)).collect();
                 //println!("{cgenes:?}")
-            },
+            }
         }
 
         if counter % 1_000_000 == 0 {

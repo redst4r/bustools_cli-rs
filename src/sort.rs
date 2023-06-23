@@ -1,9 +1,9 @@
 //! `bustools sort` code. Sorts busfiles by CB/UMI/EC
-//! 
+//!
 //! # Differences to bustools sort
 //! 1. bustools sort **does merge** records if they share CB/UMI/EC. This implementation does not!
 //!    We easily could though: in `sort_into_btree` just aggregate the `Vec<BusRecord>` values
-//! 
+//!
 #![deny(missing_docs)]
 use bustools::{
     io::{BusReader, BusRecord, BusWriter},
@@ -31,10 +31,9 @@ fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     in_mem_sort
 }
 
-
 /// Sort a busfile (via CB/UMI/EC) in memory, using BTreeMap's internal sorting!
 /// This gets quite bad for larger files!
-/// 
+///
 /// # Parameters
 /// * `busfile`: file to be sorted in memory
 /// * `outfile`: file to be sorted into
@@ -55,16 +54,16 @@ fn sort_in_memory(busfile: &str, outfile: &str) {
 /// Works via `mergesort`:
 /// 1. split the busfile into separate chunks on disk: Temporary directory is used
 /// 2. sort the chunks (in memory) individually
-/// 3. merge the chunks: iterate over all chunks in parallel via [bustools::merger] 
+/// 3. merge the chunks: iterate over all chunks in parallel via [bustools::merger]
 /// and aggregate records that might have been split across chunks
-/// 
+///
 /// # Parameters:
 /// * `busfile`: file to be sorted
 /// * `outfile`: file to be sorted into
-/// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point). 
+/// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point).
 ///    `chunksize=10_000_000` is roughly a 300MB chunk on disk
-/// 
-/// 
+///
+///
 pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let reader = BusReader::new(busfile);
     let header = reader.bus_header.clone();
@@ -141,7 +140,7 @@ mod test {
         ];
         let (busname, _dir) = setup_busfile(&unsorted_records);
 
-        let outpath= _dir.path().join("bustools_test_sorted.bus");
+        let outpath = _dir.path().join("bustools_test_sorted.bus");
         let outfile = outpath.to_str().unwrap();
 
         sort_in_memory(&busname, outfile);
@@ -179,7 +178,7 @@ mod test {
         ];
 
         let (busname, _dir) = setup_busfile(&unsorted_records);
-        let outpath= _dir.path().join("bustools_test_sorted.bus");
+        let outpath = _dir.path().join("bustools_test_sorted.bus");
         let outfile = outpath.to_str().unwrap();
 
         sort_on_disk(&busname, outfile, 2);
@@ -224,11 +223,11 @@ mod test {
             writer.write_record(&r);
         }
         drop(writer); //make sure everything is written
-        
+
         // sort it
         let sortec_path = dir.path().join("test_bus_sort_random_sorted.bus");
-        let sorted_out =sortec_path.to_str().unwrap();
-        sort_on_disk(&outfile,sorted_out , chunksize);
+        let sorted_out = sortec_path.to_str().unwrap();
+        sort_on_disk(&outfile, sorted_out, chunksize);
 
         // check if sorted
         let b = BusReader::new(sorted_out);
