@@ -20,7 +20,7 @@ rustbustools --output /tmp/count_folder --ifile /tmp/sorted.bus --t2g /tmp/trans
 ```
 
 
-## Todo
+## Todo 06/27
 - [ ] performance checks
     - [ ] sort: seems to be slow
     - [ ] correct: some performance issues due to BKTree

@@ -1,8 +1,8 @@
-use std::{fs, time::Instant, io::{self, Write}};
-use rustbustools_cli::{count::count, count2};
+use std::{fs, time::Instant};
+use bustools_cli::{count::count, count2, correct::correct, butterfly::make_ecs};
 use bustools::io::{BusFolder, BusReader, write_partial_busfile};
 use bustools::iterators::CellGroupIterator;
-use rustbustools_cli::countmatrix::CountMatrix;
+use bustools_cli::countmatrix::CountMatrix;
 
 // pub const TEST_T2G: &str = "/home/michi/transcripts_to_genes.txt";
 // pub const TEST_BUSFILE: &str = "/home/michi/mounts/TB4drive/ISB_data/LT_pilot/LT_pilot/kallisto_quant/DSP1/kallisto/sort_bus/bus_output/output.corrected.sort.bus";
@@ -16,6 +16,7 @@ use rustbustools_cli::countmatrix::CountMatrix;
 pub const TEST_T2G: &str = "/home/michi/bus_testing/transcripts_to_genes.txt";
 pub const TEST_BUSFILE: &str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
 pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output/";
+pub const TEST_WHITELIST: &str = "/home/michi/bus_testing/3M-february-2018.txt";
 
 
 #[test]
@@ -89,55 +90,19 @@ fn test_count_vs_bustools() {
         &format!("{outfolder_kallisto}/gene.genes.txt"),
     );
 
-    // no need to load from disk!!
-    // let cmat_rust = CountMatrix::from_disk(
-    //     &format!("{outfolder}/gene.mtx"),
-    //     &format!("{outfolder}/gene.barcodes.txt"),
-    //     &format!("{outfolder}/gene.genes.txt"),
-    // );
     let cmat_rust = c;
-
 
     let sum1: i32 = cmat_kallisto.matrix.iter().map(|(v, _s)| *v).sum();
     let sum2: i32 = cmat_rust.matrix.iter().map(|(v, _s)| *v).sum();
     assert_eq!(sum1, sum2);
-
-    // let h1 = cmat_kallisto.to_map();
-    // let h2 = cmat_rust.to_map();
-    // for (k, v) in h1.iter() {
-    //     match h2.get(k) {
-    //         Some(v2) => {
-    //             if *v != *v2 {
-    //                 println!("h2 wrong value {k:?}, {v}  <-> {k:?}, {v2}")
-    //             }
-    //         }
-    //         None => {
-    //             println!("h1 unique: {k:?}, {v}")
-    //         }
-    //     }
-    // }
-    // for (k, v) in h2.iter() {
-    //     match h1.get(k) {
-    //         Some(v2) => {
-    //             if *v != *v2 {
-    //                 println!("h1 wrong value {k:?}, {v}  <-> {k:?}, {v2}")
-    //             }
-    //         }
-    //         None => {
-    //             println!("h2 unique: {k:?}, {v}")
-    //         }
-    //     }
-    // }
-
     assert_eq!(cmat_kallisto, cmat_rust);
 }
 
 // #[test]
 fn test_cb_iter_speed() {
-    let foldername = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     let n = 100000;
 
-    let b = BusReader::new(foldername);
+    let b = BusReader::new(TEST_BUSFOLDER);
     let biter2 = b.groupby_cb();
 
     let now = Instant::now();
@@ -152,28 +117,43 @@ fn test_cb_iter_speed() {
 
 // #[test]
 fn test_write() {
-    // let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
-    let fname = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
     // let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
-    // write_partial_busfile(fname, outname, 10_000_000);
+    // write_partial_busfile(TEST_BUSFILE, outname, 10_000_000);
 
     let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-    write_partial_busfile(fname, outname, 1_500_000);
+    write_partial_busfile(TEST_BUSFILE, outname, 1_500_000);
+}
+
+#[test]
+fn test_count() {
+    let b = BusFolder::new(TEST_BUSFOLDER, TEST_T2G);
+    let count_matrix: CountMatrix = count(&b, false);
+    count_matrix.write("/tmp");
+    // count_bayesian(b)
+}
+
+#[test]
+fn test_correct_real_file() {
+    correct(TEST_BUSFILE, "/tmp/corrected.bus", TEST_WHITELIST)
 }
 
 // #[test]
-fn test_count() {
-    use sprs::io::write_matrix_market;
-    // let t2g_file = String::from("/home/michi/mounts/TB4drive/kallisto_resources/transcripts_to_genes.txt");
-    // let foldername = String::from("/home/michi/mounts/TB4drive/ISB_data/MNGZ01/MS_processed/S1/kallisto/sort_bus/bus_output");
-    let t2g_file = "/home/michi/bus_testing/transcripts_to_genes.txt";
-    let foldername = "/home/michi/bus_testing/bus_output";
+// fn test_correct_bk() {
+//     let the_whitelist = "/home/michi/bus_testing/3M-february-2018.txt";
+//     let wl = load_whitelist(the_whitelist);
+//     let mut bk: BkTree<String> = BkTree::new(my_hamming);
+//     bk.insert_all(wl.into_iter());
 
-    let b = BusFolder::new(foldername, t2g_file);
-    let count_matrix = count(&b, false);
+//     let r = bk.find("TAACCTGAGACTCGGA".to_string(), 1);
+//     println!("{:?}", r);
+// }
 
-    // write_sprs_to_file(count_matrix.matrix, "/tmp/test.mtx");
-    write_matrix_market("/tmp/test.mtx", &count_matrix.matrix).unwrap();
-
-    // count_bayesian(b)
+#[test]
+pub fn test_butterfly() {
+    let b = BusFolder::new(
+        TEST_BUSFOLDER,
+        TEST_T2G,
+    );
+    let h = make_ecs(&b, true);
+    println!("{:?}", h);
 }

@@ -161,17 +161,6 @@ mod testing {
     }
 
     #[test]
-    pub fn testing2() {
-        // let s = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus".to_string();
-        let b = BusFolder::new(
-            "/home/michi/bus_testing/bus_output_short",
-            "/home/michi/bus_testing/transcripts_to_genes.txt",
-        );
-        let h = make_ecs(&b, true);
-        println!("{:?}", h);
-    }
-
-    #[test]
     fn test_butterfly() {
         // create some fake EC-> Gene mapping
         let ec0 = vec2set(vec![Genename("A".to_string())]);

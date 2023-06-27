@@ -148,39 +148,15 @@ struct InspectArgs {
     inbus: String,
 }
 
-use rustbustools_cli::busmerger;
-use rustbustools_cli::butterfly;
-use rustbustools_cli::correct;
-use rustbustools_cli::count;
-use rustbustools_cli::count2;
-use rustbustools_cli::inspect;
-use rustbustools_cli::sort;
+use bustools_cli::busmerger;
+use bustools_cli::butterfly;
+use bustools_cli::correct;
+use bustools_cli::count;
+use bustools_cli::count2;
+use bustools_cli::inspect;
+use bustools_cli::sort;
 
 fn main() {
-    // use bustools::multinomial::{test_multinomial_stats, test_multinomial, multinomial_sample};
-
-    // use std::time::Instant;
-
-    // let dim = 10_000_000;
-
-    // let n = 1_000_000;
-    // let p: Vec<f64> = (1..dim).map(|x| x as f64).rev().collect();
-
-    // let now = Instant::now();
-    // multinomial_sample(n, p);
-    // let elapsed_time = now.elapsed();
-    // println!("Running multinomial_sample({}) took {} seconds.", dim, elapsed_time.as_secs());
-
-    // let now = Instant::now();
-    // test_multinomial_stats(dim);
-    // let elapsed_time = now.elapsed();
-    // println!("Running test_multinomial_stats({}) took {} seconds.", dim, elapsed_time.as_secs());
-
-    // let now = Instant::now();
-    // test_multinomial(dim);
-    // let elapsed_time = now.elapsed();
-    // println!("Running test_multinomial({}) took {} seconds.", dim, elapsed_time.as_secs());
-
     let cli = Cli::parse();
     match cli.command {
         MyCommand::busmerge(args) => {
@@ -201,7 +177,6 @@ fn main() {
             let c = count::count(&bfolder, args.ignoremm);
 
             c.write(&cli.output);
-            // write_matrix_market(&cli.output, &c.matrix).unwrap();
         }
         MyCommand::count2(args) => {
             println!("Doing count");
@@ -269,7 +244,3 @@ fn main() {
         }
     }
 }
-
-/*
-flamegraph --flamechart  -- ~/rust_target/release/bustools --output /dev/null count --ifolder /home/michi/bus_testing/bus_output_shorter --t2g /home/michi/bus_testing/transcripts_to_genes.txt
- */
