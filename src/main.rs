@@ -3,7 +3,7 @@
 //! The command line interface for my rust version of [bustools](https://github.com/BUStools/bustools).
 //!
 //! At this point, it's **far from complete and correct**, but rather a project to learn rust.
-//! Most functionality comes from a companion crate, `bustools`.
+//! Most functionality comes from a companion crate, [bustools](https://crates.io/crates/bustools).
 //!
 //! # CLI
 //! `bustools <command>`

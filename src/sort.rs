@@ -1,8 +1,8 @@
 //! `bustools sort` code. Sorts busfiles by CB/UMI/EC
 //!
-//! # Differences to bustools sort
-//! 1. bustools sort **does merge** records if they share CB/UMI/EC. This implementation does not!
-//!    We easily could though: in `sort_into_btree` just aggregate the `Vec<BusRecord>` values
+//! # Merging records
+//! Note that this not only sorts records according to CB/UMI/EC,
+//! but also merges records with the same CB/UMI/EC/FLAG (adding up their counts)
 //!
 #![deny(missing_docs)]
 use bustools::{
@@ -15,18 +15,20 @@ use std::collections::{BTreeMap, HashMap};
 use tempfile::tempdir;
 
 /// sorts/inserts an Iterator over records into a BTreeMap,
-/// (CB,UMI,EC) -> records
-/// This effectively sorts the records in memory
+/// (CB,UMI,EC, FLAG) -> records
+/// This effectively sorts the records in memory and aggregates records with the same CB/UMI/EC/FLAG
 fn sort_into_btree<I: Iterator<Item = BusRecord>>(
     iterator: I,
-) -> BTreeMap<(u64, u64, u32), Vec<BusRecord>> {
-    let mut in_mem_sort: BTreeMap<(u64, u64, u32), Vec<BusRecord>> = BTreeMap::new();
+) -> BTreeMap<(u64, u64, u32, u32), BusRecord> {
+    let mut in_mem_sort: BTreeMap<(u64, u64, u32, u32), BusRecord> = BTreeMap::new();
 
     for record in iterator {
-        let rlist = in_mem_sort
-            .entry((record.CB, record.UMI, record.EC))
-            .or_insert(Vec::new());
-        rlist.push(record)
+        if let Some(r) = in_mem_sort.get_mut(&(record.CB, record.UMI, record.EC, record.FLAG)) {
+            r.COUNT += record.COUNT
+        }
+        else {
+            in_mem_sort.insert((record.CB, record.UMI, record.EC, record.FLAG), record);
+        }
     }
     in_mem_sort
 }
@@ -45,11 +47,17 @@ fn sort_in_memory(busfile: &str, outfile: &str) {
 
     // write out
     let mut writer = BusWriter::new(outfile, header);
-    for (_cbumi, recordlist) in in_mem_sort {
-        writer.write_records(&recordlist);
+    for (_cbumi, record) in in_mem_sort {
+        writer.write_record(&record);
     }
 }
 
+/// Merges records (CB/UMI/EC) that got split over different chunks
+fn merge_chunks(record_dict: HashMap<String, Vec<BusRecord>>) -> Vec<BusRecord>{
+    let records_from_all_chunks = record_dict.into_values().flatten();
+    let btree_sorted: Vec<BusRecord> = sort_into_btree(records_from_all_chunks).into_values().collect();
+    btree_sorted
+}
 /// Sort a busfile on disk (i.e. without loading the entire thing into memory)
 /// Works via `mergesort`:
 /// 1. split the busfile into separate chunks on disk: Temporary directory is used
@@ -62,8 +70,7 @@ fn sort_in_memory(busfile: &str, outfile: &str) {
 /// * `outfile`: file to be sorted into
 /// * `chunksize`: number of busrecords per chunk (this is how much is loaded into mem at any point).
 ///    `chunksize=10_000_000` is roughly a 300MB chunk on disk
-///
-///
+/// 
 pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let reader = BusReader::new(busfile);
     let header = reader.bus_header.clone();
@@ -74,6 +81,8 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let tmpdir = tempdir().unwrap();
 
     for (i, record_chunk) in (&reader.chunks(chunksize)).into_iter().enumerate() {
+        println!("Sorting {}th chunks", i);
+
         // sort the chunk in memory
         let in_mem_sort = sort_into_btree(record_chunk);
 
@@ -83,8 +92,8 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
 
         let mut tmpwriter = BusWriter::new(&tmpfilename, header.clone());
 
-        for (_cbumi, recordlist) in in_mem_sort {
-            tmpwriter.write_records(&recordlist);
+        for (_cbumi, record) in in_mem_sort {
+            tmpwriter.write_record(&record);
         }
         chunkfiles.push(tmpfilename);
     }
@@ -103,22 +112,46 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     // each file itself is sorted
     // now we only have to merge them
     // if a single cb/umi is split over multiple records, this will put them back together
+    // however, we need to aggregate their counts and sort them by EC
     let mi = MultiIterator::new(iterator_map);
     for (_cbumi, record_dict) in mi {
-        for (_, rlist) in record_dict {
-            writer.write_records(&rlist);
-        }
+        let merged_records = merge_chunks(record_dict);  //takes care of aggregating across chunks and sorting
+        writer.write_records(&merged_records);
     }
     //tmpfiles get clean up once tmpdir is dropped!
 }
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use super::{sort_in_memory, sort_on_disk};
     use bustools::{
         io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter},
         iterators::CbUmiGroupIterator,
     };
+
+    #[test]
+    fn test_merge_sorted_aggregated(){
+        let input: HashMap<String, Vec<BusRecord>> = HashMap::from(
+            [
+                ("s1".to_string(), vec![
+                    BusRecord {CB:0 , UMI: 1, EC:0, COUNT:1 , FLAG:0},
+                    BusRecord {CB:0 , UMI: 0, EC:1, COUNT:1 , FLAG:0},
+                ]),
+                ("s2".to_string(), vec![
+                    BusRecord {CB:0 , UMI: 0, EC:0, COUNT:1 , FLAG:0},
+                    BusRecord {CB:0 , UMI: 1, EC:0, COUNT:1 , FLAG:0},
+                ]),                
+            ]);
+        let merged_records = super::merge_chunks(input);
+
+        assert_eq!(merged_records, vec![
+            BusRecord {CB:0 , UMI: 0, EC:0, COUNT:1 , FLAG:0},
+            BusRecord {CB:0 , UMI: 0, EC:1, COUNT:1 , FLAG:0},
+            BusRecord {CB:0 , UMI: 1, EC:0, COUNT:2 , FLAG:0}
+        ])
+    }
 
     #[test]
     fn test_sort_in_memory() {
@@ -233,5 +266,51 @@ mod test {
         let b = BusReader::new(sorted_out);
         let n: usize = b.groupby_cbumi().map(|(_, rlist)| rlist.len()).sum();
         assert_eq!(n, n_records)
+    }
+
+    mod sort_into_btree {
+        use bustools::io::BusRecord;
+
+        use crate::sort;
+        #[test]
+        fn test_simple(){
+            let v = vec![
+                BusRecord {CB: 1, UMI: 0, EC: 0, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 0, EC: 0, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 1, EC: 0, COUNT:1, FLAG: 0},
+                ];
+            let sorted_set = crate::sort::sort_into_btree(v.into_iter(), );
+            assert_eq!(sorted_set.len(), 3);
+
+            let umis: Vec<_> = sorted_set.iter().map(|(_,r)| r.UMI).collect();
+            assert_eq!(umis, vec![0,1,0]);
+        }
+        #[test]
+        fn test_ec_sorted(){
+            let v = vec![
+                BusRecord {CB: 0, UMI: 0, EC: 100, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 0, EC: 10, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 0, EC: 1, COUNT:1, FLAG: 0},
+                ];
+            let sorted_set = crate::sort::sort_into_btree(v.into_iter(), );
+            assert_eq!(sorted_set.len(), 3);
+
+            let ecs: Vec<_> = sorted_set.iter().map(|(_,r)| r.EC).collect();
+            assert_eq!(ecs, vec![1,10,100]);
+        }
+
+        #[test]
+        fn test_merge(){
+            let v = vec![
+                BusRecord {CB: 0, UMI: 0, EC: 0, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 0, EC: 0, COUNT:1, FLAG: 0},
+                BusRecord {CB: 0, UMI: 0, EC: 0, COUNT:1, FLAG: 0},
+                ];
+            let sorted_set = crate::sort::sort_into_btree(v.into_iter(), );
+            assert_eq!(sorted_set.len(), 1);
+
+            let counts: Vec<_> = sorted_set.iter().map(|(_,r)| r.COUNT).collect();
+            assert_eq!(counts, vec![3]);
+        }        
     }
 }
