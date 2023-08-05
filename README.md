@@ -17,16 +17,22 @@ rustbustools --output /dev/null --ifile /tmp/sorted.bus
 
 # count
 rustbustools --output /tmp/count_folder --ifile /tmp/sorted.bus --t2g /tmp/transcripts_to_gene.txt
+
+# compression
+# -N is the chunksize of a busz block
+rustbustools --output /tmp/compressed.busz -i /tmp/sorted.bus -N 10000
+
+# decompression
+rustbustools --output /tmp/plain.bus -i /tmp/compressed.busz
 ```
 
+## Todo 08/05
 
-## Todo 06/27
 - [ ] performance checks
-    - [ ] sort: seems to be slow
-    - [ ] correct: some performance issues due to BKTree
-    - [x] count: slightly slower than original bustools, but its in the ballpark
-    - [x] inspect: pretty quick already
-    - [x] butterfly amplfication: pretty quick already
-- [ ] handle compressed busfiles
+  - [ ] sort: seems to be slow
+  - [ ] correct: some performance issues due to BKTree
+  - [x] count: slightly slower than original bustools, but its in the ballpark
+  - [x] inspect: pretty quick already
+  - [x] butterfly amplfication: pretty quick already
+- [x] handle compressed busfiles
 - [ ] make CLI args compatible/consistent with original bustools
-

@@ -23,6 +23,8 @@ use clap::{self, Args, Parser, Subcommand};
 use itertools::Itertools;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+use bustools::busz::compress_busfile;
+use bustools::busz::decompress_busfile;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -47,7 +49,30 @@ enum MyCommand {
     getcb(GetCBArgs),
     butterfly(ButterflyArgs),
     correct(CorrectArgs),
+    compress(CompressArgs),
+    decompress(DecompressArgs),
 }
+
+/// compress a busfile
+#[derive(Args)]
+struct CompressArgs {
+    /// Input: sorted busfile
+    #[clap(long = "input", short = 'i')]
+    input: String,
+
+    /// Number of rows to compress as a single block.
+    #[clap(long = "chunk-size", short='N')]
+    chunksize: usize,
+}
+
+/// Decompress a busfile
+#[derive(Args)]
+struct DecompressArgs {
+    /// Input: compressed busfile
+    #[clap(long = "input", short = 'i')]
+    input: String,
+}
+
 
 /// correct CBs with whitelist
 #[derive(Args)]
@@ -242,5 +267,11 @@ fn main() {
         MyCommand::correct(args) => {
             correct::correct(&args.inbus, &cli.output, &args.whitelist);
         }
+        MyCommand::compress(args) => {
+            compress_busfile(&args.input, &cli.output, args.chunksize);
+        },
+        MyCommand::decompress(args) => {
+            decompress_busfile(&args.input, &cli.output);
+        },
     }
 }
