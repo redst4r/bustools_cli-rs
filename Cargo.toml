@@ -1,6 +1,6 @@
 [package]
 name = "bustools_cli"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = " GPL-3.0-or-later"
 description = "Rust reimplementation of bustools for scRNAseq processing"
@@ -23,7 +23,7 @@ itertools="0.11"
 tempfile="3.7.0"
 bktree="1.0.1"
 # bustools = { git = "https://github.com/redst4r/rustbustools.git" }
-bustools = "0.8"
+bustools = "0.9"
 
 [dev-dependencies]
 criterion = "0.5"
