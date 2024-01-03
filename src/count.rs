@@ -19,7 +19,7 @@ use std::time::Instant;
 
 type ExpressionVector = HashMap<Genename, u32>;
 
-
+#[allow(dead_code)]
 fn count_bayesian(bfolder: BusFolder) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);

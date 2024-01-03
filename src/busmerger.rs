@@ -1,7 +1,7 @@
 //! Filtering/Merging busfiles on CB/UMI overlap
 use bustools::{
     bus_multi::CellUmiIteratorMulti,
-    io::{BusHeader, BusWriter},
+    io::{BusWriter, BusParams},
 };
 use std::collections::HashMap;
 
@@ -20,14 +20,15 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
         ("f2".to_string(), busfile2.to_string()),
     ]);
 
+    let params = BusParams {cb_len: 16, umi_len: 12};
     let mut writers: HashMap<String, BusWriter> = HashMap::from([
         (
             "f1".to_string(),
-            BusWriter::new(outfile1, BusHeader::new(16, 12, 20)),
+            BusWriter::new(outfile1, params.clone()),
         ),
         (
             "f2".to_string(),
-            BusWriter::new(outfile2, BusHeader::new(16, 12, 20)),
+            BusWriter::new(outfile2, params),
         ),
     ]);
 

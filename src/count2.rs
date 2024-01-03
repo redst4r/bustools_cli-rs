@@ -62,6 +62,7 @@ pub fn countmap_to_matrix(
     CountMatrix::new(b, cbs_seq, gene_seq)
 }
 
+#[allow(dead_code)]
 fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);

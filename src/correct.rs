@@ -6,7 +6,7 @@
 #![deny(missing_docs)]
 use bktree::BkTree;
 use bustools::{
-    io::{BusReader, BusWriter},
+    io::{BusReader, BusWriter, BusRecord},
     utils::{get_progressbar, int_to_seq, seq_to_int},
 };
 use std::{
@@ -101,7 +101,7 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     println!("Built BKTree");
 
     let breader = BusReader::new(busfile);
-    let cb_len = breader.bus_header.get_cb_len() as usize;
+    let cb_len = breader.get_params().cb_len as usize;
 
     // note the file might be unsorted, so cant realy on groupby_cb
     println!("collecting CBs");
@@ -146,19 +146,33 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     let bar = get_progressbar(total_records as u64);
 
     let breader = BusReader::new(busfile);
-    let mut bwriter = BusWriter::new(busfile_out, breader.bus_header.clone());
+    let mut bwriter = BusWriter::new(busfile_out, breader.get_params().clone());
 
-    for (counter, record) in breader.enumerate() {
+    fn fix_record(record: BusRecord,  corrector: &HashMap<u64, u64>) -> Option<BusRecord> {
         if let Some(corrected_cb) = corrector.get(&record.CB) {
             let mut new_record = record.clone();
             new_record.CB = *corrected_cb;
-            bwriter.write_record(&new_record);
-        }
-
-        if counter % 1_000_000 == 0 {
-            bar.inc(1_000_000)
+            Some(new_record)
+        } else {
+            None
         }
     }
+    let it = breader
+        .filter_map(|record| fix_record(record, &corrector));
+
+    bwriter.write_iterator(it);
+    // for (counter, record) in breader.enumerate() {
+    //     if let Some(corrected_cb) = corrector.get(&record.CB) {
+    //         let mut new_record = record.clone();
+    //         new_record.CB = *corrected_cb;
+    //         bwriter.write_record(&new_record);
+    //     }
+
+    //     if counter % 1_000_000 == 0 {
+    //         bar.inc(1_000_000)
+    //     }
+    // }
+
     println!("wrote corrected busfile");
 }
 

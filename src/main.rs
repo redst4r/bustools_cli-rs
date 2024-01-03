@@ -14,9 +14,9 @@
 //!
 //! Check the CLI help for arguments.
 //!
-
+#[allow(warnings)]
 use bustools::consistent_genes::{GeneId, Genename, EC};
-use bustools::io::{BusFolder, BusHeader, BusReader};
+use bustools::io::{BusFolder, BusReader};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::int_to_seq;
 use clap::{self, Args, Parser, Subcommand};
@@ -238,9 +238,10 @@ fn main() {
             let mut writer = BufWriter::new(fh);
             // let cb_len = 16;
 
-            let header = BusHeader::from_file(&args.inbus);
-            let cb_len = header.get_cb_len() as usize;
-            let bus_cb = BusReader::new(&args.inbus)
+            let reader = BusReader::new(&args.inbus);
+            let params = reader.get_params();
+            let cb_len = params.cb_len as usize;
+            let bus_cb = reader
                 .groupby_cb()
                 .map(|(cb, records)| {
                     (

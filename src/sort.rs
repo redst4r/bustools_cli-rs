@@ -39,17 +39,19 @@ fn sort_into_btree<I: Iterator<Item = BusRecord>>(
 /// # Parameters
 /// * `busfile`: file to be sorted in memory
 /// * `outfile`: file to be sorted into
+#[allow(dead_code)]
 fn sort_in_memory(busfile: &str, outfile: &str) {
     let reader = BusReader::new(busfile);
-    let header = reader.bus_header.clone();
+    let params = reader.get_params().clone();
 
     let in_mem_sort = sort_into_btree(reader);
 
     // write out
-    let mut writer = BusWriter::new(outfile, header);
-    for (_cbumi, record) in in_mem_sort {
-        writer.write_record(&record);
-    }
+    let mut writer = BusWriter::new(outfile, params);
+
+    writer.write_iterator(
+        in_mem_sort.into_iter().map(|(_, rec)| rec )
+    );
 }
 
 /// Merges records (CB/UMI/EC) that got split over different chunks
@@ -73,7 +75,7 @@ fn merge_chunks(record_dict: HashMap<String, Vec<BusRecord>>) -> Vec<BusRecord>{
 /// 
 pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     let reader = BusReader::new(busfile);
-    let header = reader.bus_header.clone();
+    let params = reader.get_params().clone();
 
     let mut chunkfiles = Vec::new();
 
@@ -90,17 +92,17 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
         let file_path = tmpdir.path().join(format!("tmp_{}.bus", i));
         let tmpfilename = file_path.to_str().unwrap().to_string();
 
-        let mut tmpwriter = BusWriter::new(&tmpfilename, header.clone());
+        let mut tmpwriter = BusWriter::new(&tmpfilename, params.clone());
+        tmpwriter.write_iterator(
+            in_mem_sort.into_iter().map(|(_, rec)| rec )
+        );
 
-        for (_cbumi, record) in in_mem_sort {
-            tmpwriter.write_record(&record);
-        }
         chunkfiles.push(tmpfilename);
     }
 
     // merge all chunks
     println!("Merging {} chunks", chunkfiles.len());
-    let mut writer = BusWriter::new(outfile, header);
+    let mut writer = BusWriter::new(outfile, params);
 
     // gather the individual iterators for each chunk
     let mut iterator_map = HashMap::new();
@@ -114,10 +116,18 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     // if a single cb/umi is split over multiple records, this will put them back together
     // however, we need to aggregate their counts and sort them by EC
     let mi = MultiIterator::new(iterator_map);
-    for (_cbumi, record_dict) in mi {
-        let merged_records = merge_chunks(record_dict);  //takes care of aggregating across chunks and sorting
-        writer.write_records(&merged_records);
-    }
+    // for (_cbumi, record_dict) in mi {
+    //     let merged_records = merge_chunks(record_dict);  //takes care of aggregating across chunks and sorting
+    //     writer.write_records(&merged_records);
+    // }
+
+    let it = mi
+        .map(|(_cbumi, rdict)|
+            merge_chunks(rdict)
+        )
+        .flatten();
+    writer.write_iterator(it);
+
     //tmpfiles get clean up once tmpdir is dropped!
 }
 
@@ -127,7 +137,7 @@ mod test {
 
     use super::{sort_in_memory, sort_on_disk};
     use bustools::{
-        io::{setup_busfile, BusHeader, BusReader, BusRecord, BusWriter},
+        io::{setup_busfile, BusReader, BusRecord, BusWriter},
         iterators::CbUmiGroupIterator,
     };
 
@@ -247,14 +257,16 @@ mod test {
         let file_path = dir.path().join("test_bus_sort_random.bus");
         let outfile = file_path.to_str().unwrap();
 
-        let mut writer = BusWriter::new(outfile, BusHeader::new(cb_len, umi_len, 20));
+        let mut writer = BusWriter::new(outfile, bustools::io::BusParams {cb_len, umi_len});
+        let mut records = vec![];
         for _ in 0..n_records {
             let cb = cb_distr.sample(&mut rng);
             let umi = umi_distr.sample(&mut rng);
-
             let r = BusRecord { CB: cb, UMI: umi, EC: 0, COUNT: 1, FLAG: 0 };
-            writer.write_record(&r);
+            records.push(r);
         }
+        writer.write_iterator(records.into_iter());
+
         drop(writer); //make sure everything is written
 
         // sort it
@@ -271,7 +283,6 @@ mod test {
     mod sort_into_btree {
         use bustools::io::BusRecord;
 
-        use crate::sort;
         #[test]
         fn test_simple(){
             let v = vec![
