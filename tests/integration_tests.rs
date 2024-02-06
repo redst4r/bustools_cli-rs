@@ -1,4 +1,5 @@
 use std::{fs, time::Instant};
+use bustools::consistent_genes::{MappingMode, InconsistentResolution, make_mapper};
 use bustools_cli::{count::count, count2, correct::correct, butterfly::make_ecs};
 use bustools::io::{BusFolder, BusReader, write_partial_busfile};
 use bustools::iterators::CellGroupIterator;
@@ -29,8 +30,7 @@ fn test_count_vs_bustools() {
     let outfolder = "/tmp/bustest_rust";
     let outfolder_kallisto = "/tmp/bustest_kallisto";
 
-
-    let bfolder = BusFolder::new(TEST_BUSFOLDER, TEST_T2G);
+    let bfolder = BusFolder::new(TEST_BUSFOLDER);
     let tfile = bfolder.get_transcript_file();
     let ecfile = bfolder.get_ecmatrix_file();
     let bfile = bfolder.get_busfile();
@@ -41,16 +41,22 @@ fn test_count_vs_bustools() {
     // -------------------
     // Doing our own count
     // -------------------
+    let ecmapper = bfolder.make_mapper(TEST_T2G);
+    let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
+
     println!("Doing count::count");
     let now = Instant::now();
-    let c = count(&bfolder, false);
+    let c = count(&bfolder, mapping_mode, false);
     let elapsed_time = now.elapsed();
     println!("count::count in in {:?}", elapsed_time);
     c.write(outfolder);
 
+
+    let ecmapper = bfolder.make_mapper(TEST_T2G);
+    let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
     println!("Doing count::count2");
     let now = Instant::now();
-    let c2 = count2::count(&bfolder, false);
+    let c2 = count2::count(&bfolder, mapping_mode, false);
     let elapsed_time = now.elapsed();
     println!("count2::count in in {:?}", elapsed_time);
     assert_eq!(c2, c);
@@ -98,6 +104,7 @@ fn test_count_vs_bustools() {
     assert_eq!(cmat_kallisto, cmat_rust);
 }
 
+#[allow(dead_code)]
 // #[test]
 fn test_cb_iter_speed() {
     let n = 100000;
@@ -115,19 +122,22 @@ fn test_cb_iter_speed() {
     );
 }
 
-// #[test]
+#[test]
 fn test_write() {
     // let outname = "/home/michi/bus_testing/bus_output_short/output.corrected.sort.bus";
     // write_partial_busfile(TEST_BUSFILE, outname, 10_000_000);
 
-    let outname = "/home/michi/bus_testing/bus_output_shorter/output.corrected.sort.bus";
-    write_partial_busfile(TEST_BUSFILE, outname, 1_500_000);
+    let outname = "/home/michi/bus_testing/bus_output_shortest/output.corrected.sort.bus";
+    // write_partial_busfile(TEST_BUSFILE, outname, 1_500_000);
+    write_partial_busfile(TEST_BUSFILE, outname, 500000);
 }
 
 #[test]
 fn test_count() {
-    let b = BusFolder::new(TEST_BUSFOLDER, TEST_T2G);
-    let count_matrix: CountMatrix = count(&b, false);
+    let b = BusFolder::new(TEST_BUSFOLDER);
+    let ecmapper = b.make_mapper(TEST_T2G);
+    let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
+    let count_matrix: CountMatrix = count(&b, mapping_mode, false);
     count_matrix.write("/tmp");
     // count_bayesian(b)
 }
@@ -152,8 +162,10 @@ fn test_correct_real_file() {
 pub fn test_butterfly() {
     let b = BusFolder::new(
         TEST_BUSFOLDER,
-        TEST_T2G,
     );
-    let h = make_ecs(&b, true);
+
+    let ecmapper = b.make_mapper(TEST_T2G);
+    let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
+    let h = make_ecs(&b, mapping_mode);
     println!("{:?}", h);
 }

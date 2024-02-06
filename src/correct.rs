@@ -137,14 +137,9 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
         }
     }
     println!("corrected unique CBs: {cb_correct}/{cb_total}");
-
     println!("writing corrected busfile");
 
     // now with a map of uncorrected->corrected fix the busfile
-    let breader_tmp = BusReader::new(busfile);
-    let total_records = breader_tmp.count();
-    let bar = get_progressbar(total_records as u64);
-
     let breader = BusReader::new(busfile);
     let mut bwriter = BusWriter::new(busfile_out, breader.get_params().clone());
 
@@ -161,18 +156,6 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
         .filter_map(|record| fix_record(record, &corrector));
 
     bwriter.write_iterator(it);
-    // for (counter, record) in breader.enumerate() {
-    //     if let Some(corrected_cb) = corrector.get(&record.CB) {
-    //         let mut new_record = record.clone();
-    //         new_record.CB = *corrected_cb;
-    //         bwriter.write_record(&new_record);
-    //     }
-
-    //     if counter % 1_000_000 == 0 {
-    //         bar.inc(1_000_000)
-    //     }
-    // }
-
     println!("wrote corrected busfile");
 }
 

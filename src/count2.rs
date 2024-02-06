@@ -1,7 +1,7 @@
 //! This turns a busfolder into a count matrix, slightly different strategy than [crate::count]. Not sure which is fsater
 use crate::countmatrix::CountMatrix;
 use bustools::consistent_genes::{
-    find_consistent, Ec2GeneMapper, GeneId, Genename, MappingResult, CB,
+    find_consistent, Ec2GeneMapper, GeneId, Genename, MappingResult, CB, MappingMode,
 };
 use bustools::io::{BusFolder, BusRecord};
 use bustools::iterators::CbUmiGroupIterator;
@@ -63,7 +63,7 @@ pub fn countmap_to_matrix(
 }
 
 #[allow(dead_code)]
-fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize) {
+fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool, n_samples: usize) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);
 
@@ -82,8 +82,12 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
         total_records, elapsed_time
     );
 
+    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+        MappingMode::EC(_) => panic!("not implemented"),
+        MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+    };
     // handles the mapping between EC and gene
-    let egm = &bfolder.ec2gene;
+    // let egm = &bfolder.ec2gene;
 
     // prep for the multinomial sample
     println!("Preparing the probability vector for mutlinomial");
@@ -151,7 +155,7 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
                 continue;
             }
 
-            match count_from_record_list(&injected_records, egm, ignore_multimapped) {
+            match count_from_record_list(&injected_records, &ecmapper, ignore_multimapped) {
                 MappingResult::SingleGene(g) => {
                     let key = (CB(cb), g);
                     let current_count = all_expression_vector.entry(key).or_insert(0);
@@ -181,7 +185,7 @@ fn baysian_count(bfolder: BusFolder, ignore_multimapped: bool, n_samples: usize)
             elapsed_time
         );
 
-        let genelist_vector: Vec<Genename> = egm.get_gene_list();
+        let genelist_vector: Vec<Genename> = ecmapper.get_gene_list();
         // this is how genes are ordered as by EGM
         // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
 
@@ -214,7 +218,7 @@ fn count_from_record_list(
 }
 
 /// count the busfile in the given folder, see [crate::count::count]
-pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
@@ -232,6 +236,11 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
         total_records, elapsed_time
     );
 
+    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+        MappingMode::EC(_) => panic!("not implemented"),
+        MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+    };
+
     // CB,gene_id -> count
     let mut all_expression_vector: HashMap<(CB, GeneId), usize> = HashMap::new();
     let bar = get_progressbar(total_records as u64);
@@ -244,7 +253,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     for (counter, ((cb, _umi), record_list)) in cbumi_iter.enumerate() {
         // try to map the records of this CB/UMI into a single gene
         // if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
-        match count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped) {
+        match count_from_record_list(&record_list, &ecmapper, ignore_multimapped) {
             MappingResult::SingleGene(g) => {
                 let key = (CB(cb), g);
                 let current_count = all_expression_vector.entry(key).or_insert(0);
@@ -274,7 +283,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
         n_mapped, n_multi_inconsistent, elapsed_time
     );
 
-    let genelist_vector: Vec<Genename> = bfolder.ec2gene.get_gene_list();
+    let genelist_vector: Vec<Genename> = ecmapper.get_gene_list();
 
     // this is how genes are ordered as by EGM
     // i.e. countmap[cb, i] corresponds to the number of count of genelist_vector[i]
