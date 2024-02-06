@@ -38,10 +38,11 @@
 
 #![deny(missing_docs)]
 use bustools::{
-    consistent_genes::{find_consistent, MappingResult},
+    consistent_genes::{find_consistent, MappingResult, Ec2GeneMapper, MappingMode, InconsistentResolution},
     io::BusFolder,
     iterators::CbUmiGroupIterator,
 };
+use core::panic;
 use std::{collections::HashMap, fs::File, io::Write};
 
 /// The basic unit of this module, a frequency of frequency histogram
@@ -92,13 +93,19 @@ impl CUHistogram {
     }
 }
 
+impl From<CUHistogram> for HashMap<usize, usize> {
+    fn from(value: CUHistogram) -> Self {
+        value.histogram
+    }
+}
+
 /// Main function of this module: Quantities the amplification in the given busfolder
 /// # Arguments
 /// * `busfolder`: The folder containing the busfile, matric.ec etc...
 /// * `collapse_ec`: How to handle identical CB-UMI but different EC:
 ///     - false: just ignore and lump the reads together irresepctive of EC
 ///     - true: check if they ECs are consistent (if yes, count as aggregate), if no, discard
-pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
+pub fn make_ecs(busfolder: &BusFolder, mapping_mode: MappingMode) -> CUHistogram {
     let mut h: HashMap<usize, usize> = HashMap::new();
 
     let mut multimapped = 0;
@@ -107,23 +114,57 @@ pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
 
     for ((_cb, _umi), recordlist) in busfolder.get_iterator().groupby_cbumi() {
         total += 1;
-        if collapse_ec {
+        match &mapping_mode {
+
             // check if we can uniquely match those read to the same gene
-            // if not its either multimapped or inconsistent (could be a CB/UMI collision)
-            match find_consistent(&recordlist, &busfolder.ec2gene) {
-                MappingResult::SingleGene(_) => {
-                    // increment our histogram
-                    let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                    let freq = h.entry(nreads).or_insert(0);
-                    *freq += 1;
+            // if not its either multimapped or inconsistent (could be a CB/UMI collision)            
+            MappingMode::Gene(ecmapper, resolution_mode) => {
+                match find_consistent(&recordlist, ecmapper) {
+                    MappingResult::SingleGene(_) => {
+                        // increment our histogram
+                        let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
+                        let freq = h.entry(nreads).or_insert(0);
+                        *freq += 1;
+                    }
+                    MappingResult::Multimapped(_) => multimapped += 1,
+                    // inconsistent, i.e mapping to two distinct genes
+                    // the reasonable thin
+                    MappingResult::Inconsistent => {
+                        match resolution_mode {
+                            InconsistentResolution::IgnoreInconsistent => {inconsistent += 1},
+                            InconsistentResolution::AsDistinct => panic!("not implemented"),
+                            InconsistentResolution::AsSingle => {
+                                let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
+                                let freq = h.entry(nreads).or_insert(0);
+                                *freq += 1;
+                            },
+                        }
+                    },
                 }
-                MappingResult::Multimapped(_) => multimapped += 1,
-                MappingResult::Inconsistent => inconsistent += 1,
+            },
+            MappingMode::EC(mapping_mode) => {
+                // one could get cb/umi with multiple ECs
+                match mapping_mode{
+
+                    // just check if its a single bus record (multiple records would indicate multiple ECs)
+                    InconsistentResolution::IgnoreInconsistent => {
+                        if recordlist.len() == 1 {
+                            let nreads = recordlist[0].COUNT as usize;
+                            let freq = h.entry(nreads).or_insert(0);
+                            *freq += 1;
+                        } else {
+                            inconsistent += 1
+                        }
+                    },
+                    InconsistentResolution::AsDistinct => panic!("not implemented"),
+                    InconsistentResolution::AsSingle => {
+                        let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
+                        let freq = h.entry(nreads).or_insert(0);
+                        *freq += 1;
+                    },
+                }
             }
-        } else {
-            let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-            let freq = h.entry(nreads).or_insert(0);
-            *freq += 1;
+            // MappingMode::IgnoreMultipleCbUmi => todo!(),
         }
     }
 
@@ -142,7 +183,7 @@ pub fn make_ecs(busfolder: &BusFolder, collapse_ec: bool) -> CUHistogram {
 mod testing {
     use crate::butterfly::{make_ecs, CUHistogram};
     use bustools::{
-        consistent_genes::{Ec2GeneMapper, Genename, EC},
+        consistent_genes::{Ec2GeneMapper, Genename, EC, MappingMode, InconsistentResolution},
         io::{BusFolder, BusRecord},
         utils::vec2set,
     };
@@ -176,7 +217,7 @@ mod testing {
         ]);
         let es = Ec2GeneMapper::new(ec_dict);
 
-        // two inconsitent records, should be ifnored?!
+        // two inconsitent records, should be ignored?!
         let r1 = BusRecord { CB: 0, UMI: 1, EC: 0, COUNT: 12, FLAG: 0 };
         let r2 = BusRecord { CB: 0, UMI: 1, EC: 1, COUNT: 2, FLAG: 0 };
         // several single records
@@ -185,7 +226,7 @@ mod testing {
         let r5 = BusRecord { CB: 1, UMI: 2, EC: 1, COUNT: 2, FLAG: 0 };
 
         // two consitent records, diffrnt EC though
-        // should count as a 4x record
+        // should count as a a single 4x record
         let r6 = BusRecord { CB: 2, UMI: 1, EC: 0, COUNT: 2, FLAG: 0 };
         let r7 = BusRecord { CB: 2, UMI: 1, EC: 2, COUNT: 2, FLAG: 0 };
 
@@ -202,22 +243,28 @@ mod testing {
         let (_busname, _dir) = bustools::io::setup_busfile(&records);
         let b = BusFolder {
             foldername: _dir.path().to_str().unwrap().to_owned(),
-            ec2gene: es,
         };
 
-        // collapsing ECS
-        let h = make_ecs(&b, true);
+        // collapsing ECS, ignoreing inconsistents
+        let mapping_mode = MappingMode::Gene(es.clone(), InconsistentResolution::IgnoreInconsistent);
+        let h = make_ecs(&b, mapping_mode);
         let expected: HashMap<usize, usize> = vec![(12, 1), (2, 2), (4, 1)].into_iter().collect();
-
         assert_eq!(h.histogram, expected);
 
+        // collapsing ECS, counting inconsistens as a single molecule
+        let mapping_mode = MappingMode::Gene(es, InconsistentResolution::AsSingle);
+        let h = make_ecs(&b, mapping_mode);
+        let expected: HashMap<usize, usize> = vec![(12, 1), (2, 2), (4, 1), (14,1)].into_iter().collect();
+        assert_eq!(h.histogram, expected);
+
+
+
         // not collapsing ECs
-        let h = make_ecs(&b, false);
+        let mapping_mode = MappingMode::EC(InconsistentResolution::IgnoreInconsistent);
+        let h = make_ecs(&b, mapping_mode);
         let expected: HashMap<usize, usize> = vec![
             (12, 1),
-            (14, 1), // this one is from the two inconsistent r1,r2
             (2, 2),
-            (4, 1),
         ]
         .into_iter()
         .collect();

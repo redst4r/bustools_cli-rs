@@ -197,9 +197,12 @@ fn main() {
             println!("Doing count");
 
             fs::create_dir(&cli.output).unwrap();
-
-            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let c = count::count(&bfolder, args.ignoremm);
+            
+           
+            let bfolder = BusFolder::new(&args.inbus);
+            let ecmapper = make_mapper(&bfolder,  &args.t2g);
+            let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
+            let c = count::count(&bfolder,mapping_mode, args.ignoremm);
 
             c.write(&cli.output);
         }
@@ -207,21 +210,24 @@ fn main() {
             println!("Doing count");
             fs::create_dir(&cli.output).unwrap();
 
-            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
+            let bfolder = BusFolder::new(&args.inbus);
+            let ecmapper = bfolder.make_mapper(&args.t2g);
+            let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
 
-            let c = count2::count(&bfolder, args.ignoremm);
+            let c = count2::count(&bfolder,mapping_mode,  args.ignoremm);
             c.write(&cli.output);
         }
 
         MyCommand::resolve_ec(args) => {
             println!("Doing resolve");
-            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let mut genes: Vec<&GeneId> = bfolder.ec2gene.get_genes(EC(args.ec)).iter().collect();
+            let bfolder = BusFolder::new(&args.inbus);
+            let ecmapper = bfolder.make_mapper(&args.t2g);
+
+            let mut genes: Vec<&GeneId> = ecmapper.get_genes(EC(args.ec)).iter().collect();
             genes.sort();
             println!("EC {} -> {:?}", args.ec, genes);
 
-            let mut genenames: Vec<Genename> = bfolder
-                .ec2gene
+            let mut genenames: Vec<Genename> = ecmapper
                 .get_genenames(EC(args.ec))
                 .into_iter()
                 .collect();
@@ -261,8 +267,15 @@ fn main() {
             sort::sort_on_disk(&args.inbus, &cli.output, chunksize)
         }
         MyCommand::butterfly(args) => {
-            let bfolder = BusFolder::new(&args.inbus, &args.t2g);
-            let cuhist = butterfly::make_ecs(&bfolder, args.collapse_ec);
+            let bfolder = BusFolder::new(&args.inbus);
+            let ecmapper = bfolder.make_mapper(&args.t2g);
+            let mapping_mode =  if args.collapse_ec{
+                 MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent)
+            } else {
+                MappingMode::EC(InconsistentResolution::IgnoreInconsistent)
+            };
+
+            let cuhist = butterfly::make_ecs(&bfolder, mapping_mode);
             cuhist.to_disk(&cli.output);
         }
         MyCommand::correct(args) => {

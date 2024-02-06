@@ -1,7 +1,6 @@
 //! Filtering/Merging busfiles on CB/UMI overlap
 use bustools::{
-    bus_multi::CellUmiIteratorMulti,
-    io::{BusWriter, BusParams},
+    io::{BusParams, BusReader, BusWriter}, iterators::CbUmiGroupIterator, merger::MultiIterator
 };
 use std::collections::HashMap;
 
@@ -15,10 +14,12 @@ use std::collections::HashMap;
 /// * outfile2: 2st output: will contain all CB/UMI that also appear in busfile1 (not the records itself (EC,COUNT) can be different from busfile2)
 pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str, outfile2: &str) {
     //
-    let h: HashMap<String, String> = HashMap::from([
-        ("f1".to_string(), busfile1.to_string()),
-        ("f2".to_string(), busfile2.to_string()),
-    ]);
+    // let h: HashMap<String, String> = HashMap::from([
+    //     ("f1".to_string(), busfile1.to_string()),
+    //     ("f2".to_string(), busfile2.to_string()),
+    // ]);
+    // let cbumi_merge_iter = CellUmiIteratorMulti::new(&h);
+
 
     let params = BusParams {cb_len: 16, umi_len: 12};
     let mut writers: HashMap<String, BusWriter> = HashMap::from([
@@ -32,7 +33,13 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
         ),
     ]);
 
-    let cbumi_merge_iter = CellUmiIteratorMulti::new(&h);
+
+
+    let h: HashMap<String, _> = HashMap::from([
+        ("f1".to_string(), BusReader::new(busfile1).groupby_cbumi()),
+        ("f2".to_string(), BusReader::new(busfile2).groupby_cbumi()),
+    ]);
+    let cbumi_merge_iter = MultiIterator::new(h);
 
     for (_cbumi, record_map) in cbumi_merge_iter {
         // if the CB/UMI is present in both files, write

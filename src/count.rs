@@ -9,7 +9,7 @@
 //! 3. turn into a big sparse [crate::countmatrix::CountMatrix] via `expression_vectors_to_matrix()`
 
 use crate::countmatrix::CountMatrix;
-use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB};
+use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB, MappingMode, InconsistentResolution};
 use bustools::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::{get_progressbar, int_to_seq};
@@ -68,7 +68,7 @@ fn count_bayesian(bfolder: BusFolder) {
 ///     if false: Try to consolidate those records: Different fragments from the same mRNA might map differently,
 ///         e.g some parts of the mRNA are ambigous (mapping to more than one gene), but others might be unique
 ///     Kallisto operates with `ignore_multimapped=false`
-pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool) -> CountMatrix {
     let cb_iter = bfolder.get_iterator().groupby_cb();
 
     println!("determine size of iterator");
@@ -80,6 +80,11 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
         total_records, elapsed_time
     );
 
+    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+        MappingMode::EC(_) => panic!("not implemented"),
+        MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+    };
+
     let mut all_expression_vector: HashMap<CB, ExpressionVector> = HashMap::new();
     let now = Instant::now();
 
@@ -87,7 +92,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
 
     for (counter, (cb, record_list)) in cb_iter.enumerate() {
         //}.take(1_000_000){
-        let s = records_to_expression_vector(record_list, &bfolder.ec2gene, ignore_multimapped);
+        let s = records_to_expression_vector(record_list, &ecmapper, ignore_multimapped);
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
         all_expression_vector.insert(CB(cb), s);
@@ -101,7 +106,7 @@ pub fn count(bfolder: &BusFolder, ignore_multimapped: bool) -> CountMatrix {
     println!("done in {:?}", elapsed_time);
 
     //collect all genes
-    let genelist_vector: Vec<Genename> = bfolder.ec2gene.get_gene_list();
+    let genelist_vector: Vec<Genename> = ecmapper.get_gene_list();
     println!(" genes {}", genelist_vector.len());
 
     // todo: whats the point of this conversion from Vec<Genename> -> Vec<&Genename>
@@ -215,7 +220,7 @@ mod test {
     use super::count;
     use crate::{count::records_to_expression_vector, count2::countmap_to_matrix};
     use bustools::{
-        consistent_genes::{Ec2GeneMapper, GeneId, Genename, CB, EC},
+        consistent_genes::{Ec2GeneMapper, GeneId, Genename, CB, EC, MappingMode, InconsistentResolution},
         io::{setup_busfile, BusFolder, BusRecord},
         utils::vec2set,
     };
@@ -321,9 +326,10 @@ mod test {
 
         let bfolder = BusFolder {
             foldername: _dir.path().to_str().unwrap().to_owned(),
-            ec2gene: es,
         };
-        let cmat = count(&bfolder, false);
+
+        let mapping_mode = MappingMode::Gene(es, InconsistentResolution::IgnoreInconsistent);
+        let cmat = count(&bfolder, mapping_mode, false);
 
         let exp: HashMap<_, _> = vec![((CB(0), GeneId(0)), 2), ((CB(1), GeneId(1)), 1)]
             .into_iter()
