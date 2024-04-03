@@ -1,5 +1,5 @@
 use std::{fs, time::Instant};
-use bustools::consistent_genes::{MappingMode, InconsistentResolution, make_mapper};
+use bustools::consistent_genes::{MappingMode, InconsistentResolution};
 use bustools_cli::{count::count, count2, correct::correct, butterfly::make_ecs};
 use bustools::io::{BusFolder, BusReader, write_partial_busfile};
 use bustools::iterators::CellGroupIterator;

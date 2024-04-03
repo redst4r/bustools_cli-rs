@@ -3,6 +3,7 @@
 //!
 #![deny(missing_docs)]
 pub mod busmerger;
+pub mod concat;
 pub mod butterfly;
 pub mod correct;
 pub mod count;
@@ -10,3 +11,4 @@ pub mod count2;
 pub mod countmatrix;
 pub mod inspect;
 pub mod sort;
+pub mod multinomial;

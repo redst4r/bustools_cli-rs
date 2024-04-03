@@ -5,7 +5,7 @@ use bustools::consistent_genes::{
 };
 use bustools::io::{BusFolder, BusRecord};
 use bustools::iterators::CbUmiGroupIterator;
-use bustools::multinomial::multinomial_sample;
+use crate::multinomial::multinomial_sample;
 use bustools::utils::{get_progressbar, int_to_seq};
 use sprs::DenseVector;
 use std::collections::{BTreeSet, HashMap};
@@ -82,7 +82,7 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
         total_records, elapsed_time
     );
 
-    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+    let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
         MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
     };
@@ -134,7 +134,7 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
 
             for i in 0..injected_records.len() {
                 // let mut r = injected_records.get_mut(i).expect(&format!("injected_records {}", i));
-                let mut r = injected_records
+                let r = injected_records
                     .get_mut(i)
                     .unwrap_or_else(|| panic!("injected_records {}", i));
                 let c = injected_counts
@@ -196,7 +196,7 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
 }
 
 fn count_from_record_list(
-    records: &Vec<BusRecord>,
+    records: &[BusRecord],
     egmapper: &Ec2GeneMapper,
     ignore_multimapped: bool,
 ) -> MappingResult {
@@ -236,7 +236,7 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
         total_records, elapsed_time
     );
 
-    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+    let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
         MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
     };

@@ -61,7 +61,7 @@ fn correct_single_cb(cb: String, bk: &BkTree<String>) -> CorrectionResult {
                 })
                 .collect();
             if perfect_match.len() == 1 {
-                let cb_correct = perfect_match.get(0).unwrap().clone();
+                let cb_correct = perfect_match.first().unwrap().clone();
                 CorrectionResult::SingleHit(cb_correct)
             } else {
                 // panic!("Shouldnt happen. Whitelist shouldnt have two hits 2BP appart: {:?}", matches),
@@ -97,7 +97,7 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
 
     println!("Building BKTree");
     let mut bk: BkTree<String> = BkTree::new(my_hamming);
-    bk.insert_all(whitelist.clone().into_iter());
+    bk.insert_all(whitelist.clone());
     println!("Built BKTree");
 
     let breader = BusReader::new(busfile);

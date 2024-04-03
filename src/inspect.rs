@@ -8,6 +8,8 @@ use bustools::{
 
 #[derive(Debug, Eq, PartialEq)]
 struct BusStatistics {
+    cb_len: usize,
+    umi_len: usize,
     nrecords: usize,
     nreads: usize,
     n_cells: usize,
@@ -18,6 +20,11 @@ fn _inspect(busfile: &str) -> BusStatistics {
     let n_cbumi = BusReader::new(busfile).groupby_cbumi().count();
     let n_cells = BusReader::new(busfile).groupby_cb().count();
 
+    let bf = BusReader::new(busfile);
+    let params = bf.get_params();
+    let cb_len = params.cb_len as usize;
+    let umi_len = params.umi_len as usize;
+
     let mut nreads = 0;
     let mut nrecords = 0;
 
@@ -27,7 +34,11 @@ fn _inspect(busfile: &str) -> BusStatistics {
         nreads += r.COUNT as usize
     }
 
-    BusStatistics { nrecords, nreads, n_cells, n_cbumi }
+    // match BusReader::new(busfile) {
+    //     BusReader::Plain(reader) => {reader.get_bus_header()}
+    // }
+
+    BusStatistics {cb_len,umi_len, nrecords, nreads, n_cells, n_cbumi }
 }
 
 /// Inspect a busfile, counting number of reads, records, cb-umi combinations and cell-barcodes
@@ -38,6 +49,7 @@ fn _inspect(busfile: &str) -> BusStatistics {
 /// ```
 pub fn inspect(busfile: &str) {
     let stats = _inspect(busfile);
+    println!("CB: {} BP, UMI: {} BP", stats.cb_len, stats.umi_len);
     println!("{} BUS records", stats.nrecords);
     println!("{} reads", stats.nreads);
     println!("{} cell-barcodes", stats.n_cells);
@@ -75,7 +87,7 @@ mod testing {
         let r = _inspect(&busname);
         assert_eq!(
             r,
-            BusStatistics { nrecords: 7, nreads: 34, n_cells: 4, n_cbumi: 6 }
+            BusStatistics {cb_len: 16, umi_len: 12, nrecords: 7, nreads: 34, n_cells: 4, n_cbumi: 6 }
         );
     }
 }

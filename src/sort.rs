@@ -50,12 +50,14 @@ fn sort_in_memory(busfile: &str, outfile: &str) {
     let mut writer = BusWriter::new(outfile, params);
 
     writer.write_iterator(
-        in_mem_sort.into_iter().map(|(_, rec)| rec )
+        // in_mem_sort.into_iter().map(|(_, rec)| rec )
+        in_mem_sort.into_values()
+
     );
 }
 
 /// Merges records (CB/UMI/EC) that got split over different chunks
-fn merge_chunks(record_dict: HashMap<String, Vec<BusRecord>>) -> Vec<BusRecord>{
+pub (crate) fn merge_chunks(record_dict: HashMap<String, Vec<BusRecord>>) -> Vec<BusRecord>{
     let records_from_all_chunks = record_dict.into_values().flatten();
     let btree_sorted: Vec<BusRecord> = sort_into_btree(records_from_all_chunks).into_values().collect();
     btree_sorted
@@ -94,7 +96,8 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
 
         let mut tmpwriter = BusWriter::new(&tmpfilename, params.clone());
         tmpwriter.write_iterator(
-            in_mem_sort.into_iter().map(|(_, rec)| rec )
+            // in_mem_sort.into_iter().map(|(_, rec)| rec )
+            in_mem_sort.into_values()
         );
 
         chunkfiles.push(tmpfilename);
@@ -122,10 +125,10 @@ pub fn sort_on_disk(busfile: &str, outfile: &str, chunksize: usize) {
     // }
 
     let it = mi
-        .map(|(_cbumi, rdict)|
+        .flat_map(|(_cbumi, rdict)|
             merge_chunks(rdict)
-        )
-        .flatten();
+        );
+
     writer.write_iterator(it);
 
     //tmpfiles get clean up once tmpdir is dropped!

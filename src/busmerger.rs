@@ -1,6 +1,6 @@
 //! Filtering/Merging busfiles on CB/UMI overlap
 use bustools::{
-    io::{BusParams, BusReader, BusWriter}, iterators::CbUmiGroupIterator, merger::MultiIterator
+    io::{BusParams, BusReader, BusWriterPlain}, iterators::CbUmiGroupIterator, merger::MultiIterator
 };
 use std::collections::HashMap;
 
@@ -21,18 +21,19 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
     // let cbumi_merge_iter = CellUmiIteratorMulti::new(&h);
 
 
+    // curently only avaialbale for plain writers
+    // The BusZWriter cannot `write_records` (we need to assert that we correcrlty closed the file)
     let params = BusParams {cb_len: 16, umi_len: 12};
-    let mut writers: HashMap<String, BusWriter> = HashMap::from([
+    let mut writers: HashMap<String, BusWriterPlain> = HashMap::from([
         (
             "f1".to_string(),
-            BusWriter::new(outfile1, params.clone()),
+            BusWriterPlain::new(outfile1, params.clone()),
         ),
         (
             "f2".to_string(),
-            BusWriter::new(outfile2, params),
+            BusWriterPlain::new(outfile2, params),
         ),
     ]);
-
 
 
     let h: HashMap<String, _> = HashMap::from([
@@ -50,6 +51,15 @@ pub fn merge_busfiles_on_overlap(busfile1: &str, busfile2: &str, outfile1: &str,
             }
         }
     }
+
+    // cbumi_merge_iter.iter().map(|(_cbumi, record_map)| {
+    //     if record_map.len() == 2 {
+    //         let w1 = writers.get_mut(&name).unwrap();
+
+    //     }
+    // })
+
+
 }
 
 #[cfg(test)]

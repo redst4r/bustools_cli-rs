@@ -9,7 +9,7 @@
 //! 3. turn into a big sparse [crate::countmatrix::CountMatrix] via `expression_vectors_to_matrix()`
 
 use crate::countmatrix::CountMatrix;
-use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB, MappingMode, InconsistentResolution};
+use bustools::consistent_genes::{find_consistent, Ec2GeneMapper, Genename, MappingResult, CB, MappingMode};
 use bustools::io::{group_record_by_cb_umi, BusFolder, BusReader, BusRecord};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::{get_progressbar, int_to_seq};
@@ -80,7 +80,7 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
         total_records, elapsed_time
     );
 
-    let (ecmapper, inconstsistent_mode) = match mapping_mode {
+    let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
         MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
     };
@@ -324,9 +324,7 @@ mod test {
         let records = vec![r1, r2, r3, r4, r5, r6];
         let (_bname, _dir) = setup_busfile(&records);
 
-        let bfolder = BusFolder {
-            foldername: _dir.path().to_str().unwrap().to_owned(),
-        };
+        let bfolder = BusFolder::new(&_dir.path().to_str().unwrap().to_owned());
 
         let mapping_mode = MappingMode::Gene(es, InconsistentResolution::IgnoreInconsistent);
         let cmat = count(&bfolder, mapping_mode, false);
