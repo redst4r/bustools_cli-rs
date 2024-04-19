@@ -38,9 +38,7 @@
 
 #![deny(missing_docs)]
 use bustools::{
-    consistent_genes::{find_consistent, MappingResult, Ec2GeneMapper, MappingMode, InconsistentResolution},
-    io::BusFolder,
-    iterators::CbUmiGroupIterator,
+    consistent_genes::{find_consistent, InconsistentResolution, MappingMode, MappingResult}, consistent_transcripts::{find_consistent_transcripts, MappingResultTranscript}, io::{BusFolder, BusReader}, iterators::CbUmiGroupIterator
 };
 use core::panic;
 use std::{collections::HashMap, fs::File, io::Write};
@@ -55,10 +53,10 @@ pub struct CUHistogram {
     histogram: HashMap<usize, usize>,
 }
 impl CUHistogram {
-    // todo: useless!
-    // fn new(h: HashMap<usize, usize>) -> Self {
-    //     CUHistogram { histogram: h }
-    // }
+    /// create a new CU Histogram
+    pub fn new(h: HashMap<usize, usize>) -> Self {
+        CUHistogram { histogram: h }
+    }
 
     /// return the number of reads (#molecules * number of copies) in the busfile
     pub fn get_nreads(&self) -> usize {
@@ -91,6 +89,12 @@ impl CUHistogram {
                 .unwrap();
         }
     }
+
+    /// Update an entry in the histogram, ADDING the count
+    pub fn update(&mut self, freq: usize, count: usize) {
+        let v =self.histogram.entry(freq).or_insert(0);
+        *v += count
+    }   
 }
 
 impl From<CUHistogram> for HashMap<usize, usize> {
@@ -99,20 +103,24 @@ impl From<CUHistogram> for HashMap<usize, usize> {
     }
 }
 
-/// Main function of this module: Quantities the amplification in the given busfolder
+/// Main function of this module: Quantities the amplification in the given busfolder.
+/// Counts the frequency of seeing a molecule with `nreads` (or `numi` or whatever specified in mapping mode)
 /// # Arguments
 /// * `busfolder`: The folder containing the busfile, matric.ec etc...
-/// * `collapse_ec`: How to handle identical CB-UMI but different EC:
-///     - false: just ignore and lump the reads together irresepctive of EC
-///     - true: check if they ECs are consistent (if yes, count as aggregate), if no, discard
-pub fn make_ecs(busfolder: &BusFolder, mapping_mode: MappingMode) -> CUHistogram {
+/// * `mapping_mode`: How to handle identical CB-UMI but different EC:
+///     - EC(InconsistentResolution): EC level, resolve incosistencies according to `InconsistentResolution`
+///     - Gene(InconsistentResolution): aggregate on the gene level, handle inconsistency according to `InconsistentResolution` 
+// pub fn make_ecs(busfolder: &BusFolder, mapping_mode: MappingMode) -> CUHistogram {
+pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
     let mut h: HashMap<usize, usize> = HashMap::new();
+
+    let reader = BusReader::new(busfile);
 
     let mut multimapped = 0;
     let mut inconsistent = 0;
     let mut total = 0;
 
-    for ((_cb, _umi), recordlist) in busfolder.get_iterator().groupby_cbumi() {
+    for ((_cb, _umi), recordlist) in reader.groupby_cbumi() {
         total += 1;
         match &mapping_mode {
 
@@ -164,6 +172,30 @@ pub fn make_ecs(busfolder: &BusFolder, mapping_mode: MappingMode) -> CUHistogram
                     },
                 }
             }
+            MappingMode::Transcript(ecmapper, resolution_mode) => {
+                match find_consistent_transcripts(&recordlist, ecmapper) {
+                    MappingResultTranscript::SingleTranscript(_) => {
+                        // increment our histogram
+                        let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
+                        let freq = h.entry(nreads).or_insert(0);
+                        *freq += 1;
+                    }
+                    MappingResultTranscript::Multimapped(_) => multimapped += 1,
+                    // inconsistent, i.e mapping to two distinct genes
+                    // the reasonable thin
+                    MappingResultTranscript::Inconsistent => {
+                        match resolution_mode {
+                            InconsistentResolution::IgnoreInconsistent => {inconsistent += 1},
+                            InconsistentResolution::AsDistinct => panic!("not implemented"),
+                            InconsistentResolution::AsSingle => {
+                                let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
+                                let freq = h.entry(nreads).or_insert(0);
+                                *freq += 1;
+                            },
+                        }
+                    },
+                }
+            },
             // MappingMode::IgnoreMultipleCbUmi => todo!(),
         }
     }
@@ -241,19 +273,16 @@ mod testing {
         ];
 
         let (_busname, _dir) = bustools::io::setup_busfile(&records);
-        let b = BusFolder {
-            foldername: _dir.path().to_str().unwrap().to_owned(),
-        };
-
+        let b = BusFolder::new(&_dir.path().to_str().unwrap().to_owned());
         // collapsing ECS, ignoreing inconsistents
         let mapping_mode = MappingMode::Gene(es.clone(), InconsistentResolution::IgnoreInconsistent);
-        let h = make_ecs(&b, mapping_mode);
+        let h = make_ecs(&b.get_busfile(), mapping_mode);
         let expected: HashMap<usize, usize> = vec![(12, 1), (2, 2), (4, 1)].into_iter().collect();
         assert_eq!(h.histogram, expected);
 
         // collapsing ECS, counting inconsistens as a single molecule
         let mapping_mode = MappingMode::Gene(es, InconsistentResolution::AsSingle);
-        let h = make_ecs(&b, mapping_mode);
+        let h = make_ecs(&b.get_busfile(), mapping_mode);
         let expected: HashMap<usize, usize> = vec![(12, 1), (2, 2), (4, 1), (14,1)].into_iter().collect();
         assert_eq!(h.histogram, expected);
 
@@ -261,7 +290,7 @@ mod testing {
 
         // not collapsing ECs
         let mapping_mode = MappingMode::EC(InconsistentResolution::IgnoreInconsistent);
-        let h = make_ecs(&b, mapping_mode);
+        let h = make_ecs(&b.get_busfile(), mapping_mode);
         let expected: HashMap<usize, usize> = vec![
             (12, 1),
             (2, 2),

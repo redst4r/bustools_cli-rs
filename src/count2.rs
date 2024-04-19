@@ -1,4 +1,5 @@
 //! This turns a busfolder into a count matrix, slightly different strategy than [crate::count]. Not sure which is fsater
+use crate::count::map_record_list;
 use crate::countmatrix::CountMatrix;
 use bustools::consistent_genes::{
     find_consistent, Ec2GeneMapper, GeneId, Genename, MappingResult, CB, MappingMode,
@@ -63,7 +64,7 @@ pub fn countmap_to_matrix(
 }
 
 #[allow(dead_code)]
-fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool, n_samples: usize) {
+fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multi_ec: bool, n_samples: usize) {
     let bfile = bfolder.get_busfile();
     println!("{}", bfile);
 
@@ -84,7 +85,8 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
 
     let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
-        MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+        MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)},
+        MappingMode::Transcript(_, _) => todo!(),
     };
     // handles the mapping between EC and gene
     // let egm = &bfolder.ec2gene;
@@ -155,7 +157,7 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
                 continue;
             }
 
-            match count_from_record_list(&injected_records, &ecmapper, ignore_multimapped) {
+            match map_record_list(&injected_records, &ecmapper, ignore_multi_ec) {
                 MappingResult::SingleGene(g) => {
                     let key = (CB(cb), g);
                     let current_count = all_expression_vector.entry(key).or_insert(0);
@@ -195,30 +197,8 @@ fn baysian_count(bfolder: BusFolder, mapping_mode: MappingMode, ignore_multimapp
     }
 }
 
-fn count_from_record_list(
-    records: &[BusRecord],
-    egmapper: &Ec2GeneMapper,
-    ignore_multimapped: bool,
-) -> MappingResult {
-    // given a set of Records from the same CB/UMI, are they consistent with a particular gene
-    // which would yield a signel count
-
-    // watch out for the convoluted logic with ignore_multimapped!!
-
-    if ignore_multimapped {
-        // means: If the records map to more than one gene, just treat as unmappable
-        match records.len() {
-            1 => find_consistent(records, egmapper), // single record, still has to resolve to a single gene!
-            0 => panic!(),
-            _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
-        }
-    } else {
-        find_consistent(records, egmapper)
-    }
-}
-
 /// count the busfile in the given folder, see [crate::count::count]
-pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multi_ec: bool) -> CountMatrix {
     /*
     busfile to count matrix, analogous to "bustools count"
     */
@@ -239,6 +219,7 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
     let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
         MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+        MappingMode::Transcript(_, _) => todo!(),
     };
 
     // CB,gene_id -> count
@@ -252,8 +233,8 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
 
     for (counter, ((cb, _umi), record_list)) in cbumi_iter.enumerate() {
         // try to map the records of this CB/UMI into a single gene
-        // if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multimapped)
-        match count_from_record_list(&record_list, &ecmapper, ignore_multimapped) {
+        // if let Some(g) = count_from_record_list(&record_list, &bfolder.ec2gene, ignore_multi_ec)
+        match map_record_list(&record_list, &ecmapper, ignore_multi_ec) {
             MappingResult::SingleGene(g) => {
                 let key = (CB(cb), g);
                 let current_count = all_expression_vector.entry(key).or_insert(0);

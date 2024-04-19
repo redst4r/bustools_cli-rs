@@ -14,18 +14,16 @@
 //!
 //! Check the CLI help for arguments.
 //!
-use bustools::consistent_genes::{make_mapper, MappingMode, InconsistentResolution};
-#[allow(warnings)]
-use bustools::consistent_genes::{GeneId, Genename, EC};
-use bustools::io::{BusFolder, BusReader};
+use bustools::busz::{BuszReader, BuszWriter};
+use bustools::consistent_genes::{MappingMode, InconsistentResolution, GeneId, Genename, EC};
+use bustools::io::{BusFolder, BusReader, BusReaderPlain, BusWriterPlain};
 use bustools::iterators::CellGroupIterator;
 use bustools::utils::int_to_seq;
+use bustools_cli::concat::concat_bus;
 use clap::{self, Args, Parser, Subcommand};
 use itertools::Itertools;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-use bustools::busz::compress_busfile;
-use bustools::busz::decompress_busfile;
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -52,6 +50,7 @@ enum MyCommand {
     correct(CorrectArgs),
     compress(CompressArgs),
     decompress(DecompressArgs),
+    concat(ConcatArgs),
 }
 
 /// compress a busfile
@@ -174,6 +173,17 @@ struct InspectArgs {
     inbus: String,
 }
 
+
+/// Concatentate busfiles. Assumes each file is sorted. 
+/// If a record occurs in multiple files, it is aggregated (COUNT added)
+#[derive(Args)]
+struct ConcatArgs {
+    /// Input busfiles 
+    #[clap(long = "files", short = 'i', num_args = 1..)]
+    inbus: Vec<String>,
+}
+
+
 use bustools_cli::busmerger;
 use bustools_cli::butterfly;
 use bustools_cli::correct;
@@ -201,7 +211,7 @@ fn main() {
             
            
             let bfolder = BusFolder::new(&args.inbus);
-            let ecmapper = make_mapper(&bfolder,  &args.t2g);
+            let ecmapper = bfolder.make_mapper(&args.t2g);
             let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
             let c = count::count(&bfolder,mapping_mode, args.ignoremm);
 
@@ -276,7 +286,7 @@ fn main() {
                 MappingMode::EC(InconsistentResolution::IgnoreInconsistent)
             };
 
-            let cuhist = butterfly::make_ecs(&bfolder, mapping_mode);
+            let cuhist = butterfly::make_ecs(&bfolder.get_busfile(), mapping_mode);
             cuhist.to_disk(&cli.output);
         }
         MyCommand::correct(args) => {
@@ -288,5 +298,43 @@ fn main() {
         MyCommand::decompress(args) => {
             decompress_busfile(&args.input, &cli.output);
         },
+        MyCommand::concat(args) => {
+            concat_bus(args.inbus, &cli.output)
+        },
     }
+}
+
+
+/// Compress `input` busfile into `output` busz-file using `blocksize`
+/// 
+/// # Parameters
+/// * blocksize: How many elements are grouped together and compressed together
+pub fn compress_busfile(input: &str, output: &str, blocksize: usize) {
+
+    let reader = BusReaderPlain::new(input);
+    let mut writer = BuszWriter::new(output, reader.params.clone(), blocksize);
+    writer.write_iterator(reader.into_iter());
+}
+
+/// Decompress the `input` busz file into a plain busfile, `output`
+pub fn decompress_busfile(input: &str, output: &str) {
+    let reader = BuszReader::new(input);
+    let mut writer = BusWriterPlain::new(
+        output,
+        reader.get_params().clone()
+    );
+
+    for r in reader {
+        writer.write_record(&r);
+    }
+}
+
+
+/*
+flamegraph --flamechart  -- ~/rust_target/release/bustools --output /dev/null count --ifolder /home/michi/bus_testing/bus_output_shorter --t2g /home/michi/bus_testing/transcripts_to_genes.txt
+ */
+
+#[test]
+fn create_dummy() { 
+    
 }

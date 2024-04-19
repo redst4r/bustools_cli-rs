@@ -63,12 +63,12 @@ fn count_bayesian(bfolder: BusFolder) {
 /// busfile to count matrix, analogous to "bustools count"
 /// ## Parameters
 /// * bfolder: Busfolder (containing busfile, matric.ec and transcripts.txt) to count
-/// *  ignore_multimapped:
+/// *  ignore_multi_ec:
 ///     if true, discard CB/UMIs that have multipel records with different EC
 ///     if false: Try to consolidate those records: Different fragments from the same mRNA might map differently,
 ///         e.g some parts of the mRNA are ambigous (mapping to more than one gene), but others might be unique
 ///     Kallisto operates with `ignore_multimapped=false`
-pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped: bool) -> CountMatrix {
+pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multi_ec: bool) -> CountMatrix {
     let cb_iter = bfolder.get_iterator().groupby_cb();
 
     println!("determine size of iterator");
@@ -83,6 +83,8 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
     let (ecmapper, _inconstsistent_mode) = match mapping_mode {
         MappingMode::EC(_) => panic!("not implemented"),
         MappingMode::Gene(ecmapper, inconstsistent_mode) => {(ecmapper, inconstsistent_mode)}
+        MappingMode::Transcript(_, _) => todo!(),
+        
     };
 
     let mut all_expression_vector: HashMap<CB, ExpressionVector> = HashMap::new();
@@ -91,8 +93,7 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
     let bar = get_progressbar(total_records as u64);
 
     for (counter, (cb, record_list)) in cb_iter.enumerate() {
-        //}.take(1_000_000){
-        let s = records_to_expression_vector(record_list, &ecmapper, ignore_multimapped);
+        let s = records_to_expression_vector(record_list, &ecmapper, ignore_multi_ec);
 
         // this will also insert emtpy cells (i.e. their records are all multimapped)
         all_expression_vector.insert(CB(cb), s);
@@ -122,12 +123,27 @@ pub fn count(bfolder: &BusFolder, mapping_mode: MappingMode, ignore_multimapped:
     countmatrix
 }
 
+/// try to map the records to a gene
+pub (crate) fn map_record_list(records: &[BusRecord], eg_mapper: &Ec2GeneMapper, ignore_multi_ec:bool) -> MappingResult {
+    let m: MappingResult = if ignore_multi_ec {
+        // means: If the records map to more than one gene, just treat as unmappable
+        match records.len() {
+            1 => find_consistent(&records, eg_mapper), // single record, still has to resolve to a single gene!
+            0 => panic!(),
+            _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
+        }
+    } else {
+        find_consistent(&records, eg_mapper)
+    };
+    m
+}
+
 /// Turns a set of Busrecords from a single cell (sahred CB() into an expression vector:
 /// per gene, how many umis are observed
 fn records_to_expression_vector(
     record_list: Vec<BusRecord>,
     eg_mapper: &Ec2GeneMapper,
-    ignore_multimapped: bool,
+    ignore_multi_ec: bool,
 ) -> ExpressionVector {
     /*
     TODO this doesnt consider multiple records with same umi/cb + EC mapping to different genes, i.e. a colision
@@ -143,18 +159,7 @@ fn records_to_expression_vector(
     for ((_cb, _umi), records) in cb_umi_grouped {
         // all records coresponding to the same UMI
 
-        let m: MappingResult = if ignore_multimapped {
-            // means: If the records map to more than one gene, just treat as unmappable
-            match records.len() {
-                1 => find_consistent(&records, eg_mapper), // single record, still has to resolve to a single gene!
-                0 => panic!(),
-                _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
-            }
-        } else {
-            find_consistent(&records, eg_mapper)
-        };
-
-        match m {
+        match map_record_list(&records, eg_mapper, ignore_multi_ec) {
             // mapped to a single gene: update count!
             MappingResult::SingleGene(g) => {
                 let gname = eg_mapper.resolve_gene_id(g);

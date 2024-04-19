@@ -18,13 +18,18 @@ pub const TEST_T2G: &str = "/home/michi/bus_testing/transcripts_to_genes.txt";
 pub const TEST_BUSFILE: &str = "/home/michi/bus_testing/bus_output/output.corrected.sort.bus";
 pub const TEST_BUSFOLDER: &str = "/home/michi/bus_testing/bus_output/";
 pub const TEST_WHITELIST: &str = "/home/michi/bus_testing/3M-february-2018.txt";
+pub const IGNOREMULTIMAPPED: bool = false;
 
-
+/// comparing our implementation vs kallisto-bustools on a real bus file
+/// run:
+/// RUST_BACKTRACE=1 cargo test --release --package rustbustools --lib -- --nocapture count::test::test_vs_bustools
+/// 
+/// We get equivalent results if
+/// - we map to genes
+/// - we ignore inconsistent genes
+/// - we try to resolve multimapped genes (their EC overlap)
 #[test]
 fn test_count_vs_bustools() {
-    // comparing our implementation vs kallisto-bustools on a real bus file
-    // run:
-    // RUST_BACKTRACE=1 cargo test --release --package rustbustools --lib -- --nocapture count::test::test_vs_bustools
     use std::process::Command;
 
     let outfolder = "/tmp/bustest_rust";
@@ -46,7 +51,7 @@ fn test_count_vs_bustools() {
 
     println!("Doing count::count");
     let now = Instant::now();
-    let c = count(&bfolder, mapping_mode, false);
+    let c = count(&bfolder, mapping_mode, IGNOREMULTIMAPPED);
     let elapsed_time = now.elapsed();
     println!("count::count in in {:?}", elapsed_time);
     c.write(outfolder);
@@ -56,7 +61,7 @@ fn test_count_vs_bustools() {
     let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
     println!("Doing count::count2");
     let now = Instant::now();
-    let c2 = count2::count(&bfolder, mapping_mode, false);
+    let c2 = count2::count(&bfolder, mapping_mode, IGNOREMULTIMAPPED);
     let elapsed_time = now.elapsed();
     println!("count2::count in in {:?}", elapsed_time);
     assert_eq!(c2, c);
@@ -102,6 +107,34 @@ fn test_count_vs_bustools() {
     let sum2: i32 = cmat_rust.matrix.iter().map(|(v, _s)| *v).sum();
     assert_eq!(sum1, sum2);
     assert_eq!(cmat_kallisto, cmat_rust);
+}
+
+
+#[test]
+fn test_compare() {
+
+    let outfolder = "/tmp/bustest_rust";
+    let outfolder_kallisto = "/tmp/bustest_kallisto";
+
+    // -------------------
+    // Comparing results
+    // -------------------
+    let cmat_kallisto = CountMatrix::from_disk(
+        &format!("{outfolder_kallisto}/gene.mtx"),
+        &format!("{outfolder_kallisto}/gene.barcodes.txt"),
+        &format!("{outfolder_kallisto}/gene.genes.txt"),
+    );
+
+    let cmat_rust = CountMatrix::from_disk(
+        &format!("{outfolder}/gene.mtx"),
+        &format!("{outfolder}/gene.barcodes.txt"),
+        &format!("{outfolder}/gene.genes.txt"),
+    );
+
+    let sum1: i32 = cmat_kallisto.matrix.iter().map(|(v, _s)| *v).sum();
+    let sum2: i32 = cmat_rust.matrix.iter().map(|(v, _s)| *v).sum();
+    assert_eq!(sum1, sum2);
+    assert_eq!(cmat_kallisto, cmat_rust);   
 }
 
 #[allow(dead_code)]
@@ -166,6 +199,6 @@ pub fn test_butterfly() {
 
     let ecmapper = b.make_mapper(TEST_T2G);
     let mapping_mode = MappingMode::Gene(ecmapper, InconsistentResolution::IgnoreInconsistent);
-    let h = make_ecs(&b, mapping_mode);
+    let h = make_ecs(&b.get_busfile(), mapping_mode);
     println!("{:?}", h);
 }

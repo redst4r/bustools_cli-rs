@@ -31,8 +31,7 @@ use std::{
 };
 
 use sprs::{
-    io::{read_matrix_market, write_matrix_market},
-    TriMat,
+    io::{read_matrix_market, write_matrix_market}, TriMat
 };
 
 /// Countmatrix, cells-by-genes
@@ -69,11 +68,28 @@ impl CountMatrix {
     }
 
     /// load a countmatrix from disk (kallisto format: mtx + barcodes.txt + genes)
+    /// 
+    /// Oddly kallisto stores counts are `real` in the mmFormat (bustools v0.43.2)
+    /// Hence we need to read a f32-sparse matrix and convert to ints
     pub fn from_disk(mtx_file: &str, cbfile: &str, genefile: &str) -> Self {
         // load countmatrix from disk, from matrix-market format
-        let mat: TriMat<i32> =
-            read_matrix_market(mtx_file).unwrap_or_else(|_| panic!("{} not found", mtx_file));
-        let matrix: sprs::CsMat<i32> = mat.to_csr();
+        let mat: TriMat<f32> =
+            read_matrix_market(mtx_file).unwrap_or_else(|e| panic!("cant load {}: {:?}", mtx_file, e));
+
+        println!("Convertting f32 -> i32");
+        // need to convert to i32
+        let intdata: Vec<i32> = mat.data().iter().map(|x| x.round() as i32).collect();
+
+        let intmat: TriMat<i32> = TriMat::from_triplets(
+            mat.shape(), 
+            mat.row_inds().to_vec(), 
+            mat.col_inds().to_vec(), 
+            intdata
+        );
+        println!("Done Convertting f32 -> i32");
+
+        let matrix: sprs::CsMat<i32> = intmat.to_csr();
+
 
         let fh = File::open(cbfile).unwrap_or_else(|_| panic!("{} not found", cbfile));
         // Read the file line by line, and return an iterator of the lines of the file.
@@ -111,7 +127,28 @@ impl CountMatrix {
         let cbfile = format!("{}/gene.barcodes.txt", foldername);
         let genefile = format!("{}/gene.genes.txt", foldername);
 
-        write_matrix_market(mfile, &self.matrix).unwrap();
+
+        // silly: kallisto stores `real`s in the mmFormat
+        // hence we need to convert i32->f32 and write those to disk
+        println!("Convertting i32 -> f32");
+        let mut floatdata: Vec<f32> = Vec::new();
+        let mut rows: Vec<usize> = Vec::new();
+        let mut cols: Vec<usize> = Vec::new();
+        for (&v, (r,c)) in self.matrix.iter() {
+            floatdata.push(v as f32);
+            rows.push(r);
+            cols.push(c);
+        }
+
+        let fmat: TriMat<f32> = TriMat::from_triplets(
+            self.matrix.shape(), 
+            rows,
+            cols,
+            floatdata
+        );
+        println!("Done Convertting f32 -> i32");
+
+        write_matrix_market(mfile, &fmat).unwrap();
 
         let mut fh_cb = File::create(cbfile).unwrap();
         let mut fh_gene = File::create(genefile).unwrap();
