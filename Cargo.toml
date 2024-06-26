@@ -1,6 +1,6 @@
 [package]
 name = "bustools_cli"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 license = " GPL-3.0-or-later"
 description = "Rust reimplementation of bustools for scRNAseq processing"
@@ -19,13 +19,11 @@ sprs = "0.11"
 statrs = "0.16"
 rand = "0.8"
 probability="0.20"  # for faster Binomial Sampling, using inverse pdf
-itertools="0.12"
+itertools="0.13"
 tempfile="3.10"
 bktree="1"
-# bustools = { path = "/home/michi/Dropbox/rustbustools", version="0.9"  }
-bustools = { path = "/home/michi/Dropbox/rustbustools" }
-# bustools ="0.13"
-# bustools = { git = "https://github.com/redst4r/rustbustools.git" }
+# bustools = { path = "/home/michi/Dropbox/rustbustools" }
+bustools ="0.14"
 
 [dev-dependencies]
 criterion = "0.5"

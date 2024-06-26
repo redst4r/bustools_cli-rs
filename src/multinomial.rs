@@ -6,7 +6,7 @@ use probability::prelude::*;
 use probability::source::Xorshift128Plus;
 use rand;
 use rand::distributions::Distribution;
-use statrs::distribution::{Binomial, Multinomial}; // warning the statrs::Binomial has very slow sampling (sum of Bernullis)
+use statrs::distribution::Binomial; // warning the statrs::Binomial has very slow sampling (sum of Bernullis)
 
 /// Multinomial sample ~ MN(n,p)
 ///
@@ -149,6 +149,7 @@ pub fn multinomial_sample_binary_search(
 
 #[cfg(test)]
 mod test {
+    use statrs::distribution::Multinomial;
     use super::*;
     // #[test]
     #[allow(dead_code)]

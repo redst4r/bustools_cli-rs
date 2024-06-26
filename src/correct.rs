@@ -119,13 +119,13 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
 
         // to save time (BKtree is slow) check if we have a direct match
         if whitelist.contains(&cb) {
-            let cbint = seq_to_int(cb);
+            let cbint = seq_to_int(&cb);
             corrector.insert(cbint, cbint);
             cb_correct += 1
         // if its not a direct match, check the BKTree for 1 error
         } else if let CorrectionResult::SingleHit(corrected_cb) = correct_single_cb(cb.clone(), &bk)
         {
-            corrector.insert(seq_to_int(cb), seq_to_int(corrected_cb));
+            corrector.insert(seq_to_int(&cb), seq_to_int(&corrected_cb));
             cb_correct += 1
         } else {
             // simply dont do anything. Later if we look up a query-CB and cant find it in the map

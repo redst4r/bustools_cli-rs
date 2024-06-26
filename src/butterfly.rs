@@ -38,7 +38,7 @@
 
 #![deny(missing_docs)]
 use bustools::{
-    consistent_genes::{find_consistent, InconsistentResolution, MappingMode, MappingResult}, consistent_transcripts::{find_consistent_transcripts, MappingResultTranscript}, io::{BusFolder, BusReader}, iterators::CbUmiGroupIterator
+    consistent_genes::{find_consistent, InconsistentResolution, MappingMode, MappingResult}, consistent_transcripts::{find_consistent_transcripts, MappingResultTranscript}, io::BusReader, iterators::CbUmiGroupIterator
 };
 use core::panic;
 use std::{collections::HashMap, fs::File, io::Write};

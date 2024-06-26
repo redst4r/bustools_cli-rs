@@ -2,7 +2,7 @@
 use crate::count::map_record_list;
 use crate::countmatrix::CountMatrix;
 use bustools::consistent_genes::{
-    find_consistent, Ec2GeneMapper, GeneId, Genename, MappingResult, CB, MappingMode,
+    GeneId, Genename, MappingResult, CB, MappingMode,
 };
 use bustools::io::{BusFolder, BusRecord};
 use bustools::iterators::CbUmiGroupIterator;
