@@ -91,10 +91,15 @@ impl CUHistogram {
     }
 
     /// Update an entry in the histogram, ADDING the count
-    pub fn update(&mut self, freq: usize, count: usize) {
+    pub fn add_counts(&mut self, freq: usize, count: usize) {
         let v =self.histogram.entry(freq).or_insert(0);
         *v += count
-    }   
+    }
+
+    /// pops out the underlying histogram/hashmap
+    pub fn get_histogram(self) -> HashMap<usize, usize>{
+        self.histogram
+    }
 }
 
 impl From<CUHistogram> for HashMap<usize, usize> {
@@ -102,6 +107,15 @@ impl From<CUHistogram> for HashMap<usize, usize> {
         value.histogram
     }
 }
+
+// /// Convenience, allows us to return CUHistograms directly
+// /// in PyO3, they'll just come out as dictionaries
+// use pyo3::{types::PyDict, ToPyObject};
+// impl pyo3::IntoPy<pyo3::PyObject> for CUHistogram {
+//     fn into_py(self, py: pyo3::Python<'_>) -> pyo3::PyObject {
+//         self.histogram.to_object( py )
+//     }
+// }
 
 /// Main function of this module: Quantities the amplification in the given busfolder.
 /// Counts the frequency of seeing a molecule with `nreads` (or `numi` or whatever specified in mapping mode)

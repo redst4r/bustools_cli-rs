@@ -128,12 +128,12 @@ pub (crate) fn map_record_list(records: &[BusRecord], eg_mapper: &Ec2GeneMapper,
     let m: MappingResult = if ignore_multi_ec {
         // means: If the records map to more than one gene, just treat as unmappable
         match records.len() {
-            1 => find_consistent(&records, eg_mapper), // single record, still has to resolve to a single gene!
+            1 => find_consistent(records, eg_mapper), // single record, still has to resolve to a single gene!
             0 => panic!(),
             _ => MappingResult::Inconsistent, // if theres more than one record just skip (we dont even try to resolve)
         }
     } else {
-        find_consistent(&records, eg_mapper)
+        find_consistent(records, eg_mapper)
     };
     m
 }
