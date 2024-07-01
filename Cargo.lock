@@ -164,9 +164,9 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
 name = "bustools"
-version = "0.14.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64d88347c29aa75195556f5bd3b0b362f39587311f80604f70c1ecb9dbfde84c"
+checksum = "a59e5438bd3a4e7e9ec5a4bc625707afe016481c2dc48f9f7580f110c281688f"
 dependencies = [
  "bincode",
  "bitvec",
@@ -181,7 +181,7 @@ dependencies = [
 
 [[package]]
 name = "bustools_cli"
-version = "0.3.2"
+version = "0.4.0"
 dependencies = [
  "bktree",
  "bustools",

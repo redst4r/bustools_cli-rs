@@ -1,6 +1,6 @@
 [package]
 name = "bustools_cli"
-version = "0.3.2"
+version = "0.4.0"
 edition = "2021"
 license = " GPL-3.0-or-later"
 description = "Rust reimplementation of bustools for scRNAseq processing"
@@ -24,6 +24,7 @@ tempfile="3.10"
 bktree="1"
 # bustools = { path = "/home/michi/Dropbox/rustbustools" }
 bustools ="0.14"
+#pyo3 = "0.20.0"  # testing CUHistogram conversion
 
 [dev-dependencies]
 criterion = "0.5"

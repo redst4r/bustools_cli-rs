@@ -54,8 +54,8 @@ pub struct CUHistogram {
 }
 impl CUHistogram {
     /// create a new CU Histogram
-    pub fn new(h: HashMap<usize, usize>) -> Self {
-        CUHistogram { histogram: h }
+    pub fn new() -> Self {
+        CUHistogram { histogram: HashMap::new() }
     }
 
     /// return the number of reads (#molecules * number of copies) in the busfile
@@ -102,6 +102,13 @@ impl CUHistogram {
     }
 }
 
+// convert from hashmap to CU
+impl From<HashMap<usize, usize>> for CUHistogram {
+    fn from(value: HashMap<usize, usize>) -> Self {
+        Self {histogram: value}
+    }
+}
+
 impl From<CUHistogram> for HashMap<usize, usize> {
     fn from(value: CUHistogram) -> Self {
         value.histogram
@@ -126,7 +133,7 @@ impl From<CUHistogram> for HashMap<usize, usize> {
 ///     - Gene(InconsistentResolution): aggregate on the gene level, handle inconsistency according to `InconsistentResolution` 
 // pub fn make_ecs(busfolder: &BusFolder, mapping_mode: MappingMode) -> CUHistogram {
 pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
-    let mut h: HashMap<usize, usize> = HashMap::new();
+    let mut h: CUHistogram = CUHistogram::new();    
 
     let reader = BusReader::new(busfile);
 
@@ -145,8 +152,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                     MappingResult::SingleGene(_) => {
                         // increment our histogram
                         let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                        let freq = h.entry(nreads).or_insert(0);
-                        *freq += 1;
+                        h.add_counts(nreads, 1);
                     }
                     MappingResult::Multimapped(_) => multimapped += 1,
                     // inconsistent, i.e mapping to two distinct genes
@@ -157,8 +163,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                             InconsistentResolution::AsDistinct => panic!("not implemented"),
                             InconsistentResolution::AsSingle => {
                                 let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                                let freq = h.entry(nreads).or_insert(0);
-                                *freq += 1;
+                                h.add_counts(nreads, 1);
                             },
                         }
                     },
@@ -172,8 +177,8 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                     InconsistentResolution::IgnoreInconsistent => {
                         if recordlist.len() == 1 {
                             let nreads = recordlist[0].COUNT as usize;
-                            let freq = h.entry(nreads).or_insert(0);
-                            *freq += 1;
+                            h.add_counts(nreads, 1);
+
                         } else {
                             inconsistent += 1
                         }
@@ -181,8 +186,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                     InconsistentResolution::AsDistinct => panic!("not implemented"),
                     InconsistentResolution::AsSingle => {
                         let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                        let freq = h.entry(nreads).or_insert(0);
-                        *freq += 1;
+                        h.add_counts(nreads, 1);
                     },
                 }
             }
@@ -191,8 +195,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                     MappingResultTranscript::SingleTranscript(_) => {
                         // increment our histogram
                         let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                        let freq = h.entry(nreads).or_insert(0);
-                        *freq += 1;
+                        h.add_counts(nreads, 1);
                     }
                     MappingResultTranscript::Multimapped(_) => multimapped += 1,
                     // inconsistent, i.e mapping to two distinct genes
@@ -203,8 +206,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
                             InconsistentResolution::AsDistinct => panic!("not implemented"),
                             InconsistentResolution::AsSingle => {
                                 let nreads: usize = recordlist.iter().map(|x| x.COUNT as usize).sum();
-                                let freq = h.entry(nreads).or_insert(0);
-                                *freq += 1;
+                                h.add_counts(nreads, 1);
                             },
                         }
                     },
@@ -222,7 +224,7 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
         inconsistent,
         (inconsistent as f32) / (total as f32)
     );
-    CUHistogram { histogram: h }
+    h
 }
 
 #[cfg(test)]
