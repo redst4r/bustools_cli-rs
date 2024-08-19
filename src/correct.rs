@@ -95,11 +95,6 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     let whitelist = load_whitelist(whitelist_filename);
     println!("Loaded whitelist");
 
-    println!("Building BKTree");
-    let mut bk: BkTree<String> = BkTree::new(my_hamming);
-    bk.insert_all(whitelist.clone());
-    println!("Built BKTree");
-
     let breader = BusReader::new(busfile);
     let cb_len = breader.get_params().cb_len as usize;
 
@@ -108,36 +103,7 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     let unique_cbs: HashSet<String> = breader.map(|r| int_to_seq(r.CB, cb_len)).collect();
     println!("collected CBs");
 
-    println!("correcting unique CBs");
-    // mapping on the int represnetation of the barcodes! saves some time
-    let mut corrector: HashMap<u64, u64> = HashMap::with_capacity(unique_cbs.len());
-    let bar = get_progressbar(unique_cbs.len() as u64);
-    let mut cb_correct = 0;
-    let mut cb_total = 0;
-    for (counter, cb) in unique_cbs.into_iter().enumerate() {
-        cb_total += 1;
-
-        // to save time (BKtree is slow) check if we have a direct match
-        if whitelist.contains(&cb) {
-            let cbint = seq_to_int(&cb);
-            corrector.insert(cbint, cbint);
-            cb_correct += 1
-        // if its not a direct match, check the BKTree for 1 error
-        } else if let CorrectionResult::SingleHit(corrected_cb) = correct_single_cb(cb.clone(), &bk)
-        {
-            corrector.insert(seq_to_int(&cb), seq_to_int(&corrected_cb));
-            cb_correct += 1
-        } else {
-            // simply dont do anything. Later if we look up a query-CB and cant find it in the map
-            // it cant be corrected!
-        }
-
-        if counter % 100_000 == 0 {
-            bar.inc(100_000)
-        }
-    }
-    println!("corrected unique CBs: {cb_correct}/{cb_total}");
-    println!("writing corrected busfile");
+    let corrector = build_correct_map(&unique_cbs, &whitelist);
 
     // now with a map of uncorrected->corrected fix the busfile
     let breader = BusReader::new(busfile);
@@ -159,8 +125,50 @@ pub fn correct(busfile: &str, busfile_out: &str, whitelist_filename: &str) {
     println!("wrote corrected busfile");
 }
 
+/// creates the `mutated`->`true` mapping of every element in the cbs to the whiteslist
+/// Uses a BKTree
+pub fn build_correct_map(cbs: &HashSet<String>, whitelist: &HashSet<String>) -> HashMap<u64, u64> {
+
+    println!("Building BKTree");
+    let mut bk: BkTree<String> = BkTree::new(my_hamming);
+    bk.insert_all(whitelist.clone());
+    println!("Built BKTree");
+
+    println!("correcting unique CBs");
+    // mapping on the int represnetation of the barcodes! saves some time
+    let mut corrector: HashMap<u64, u64> = HashMap::with_capacity(cbs.len());
+    let bar = get_progressbar(cbs.len() as u64);
+    let mut cb_correct = 0;
+    let mut cb_total = 0;
+    for (counter, cb) in cbs.iter().enumerate() {
+        cb_total += 1;
+
+        // to save time (BKtree is slow) check if we have a direct match
+        if whitelist.contains(cb) {
+            let cbint = seq_to_int(cb);
+            corrector.insert(cbint, cbint);
+            cb_correct += 1
+        // if its not a direct match, check the BKTree for 1 error
+        } else if let CorrectionResult::SingleHit(corrected_cb) = correct_single_cb(cb.clone(), &bk)
+        {
+            corrector.insert(seq_to_int(cb), seq_to_int(&corrected_cb));
+            cb_correct += 1
+        } else {
+            // simply dont do anything. Later if we look up a query-CB and cant find it in the map
+            // it cant be corrected!
+        }
+
+        if counter % 1_000 == 0 {
+            bar.inc(1_000)
+        }
+    };
+    println!("corrected unique CBs: {cb_correct}/{cb_total}");
+    corrector
+
+}
+
 /// Parse the whitelist-file (one whitelisted barcode per line) into a HashSet
-fn load_whitelist(whitelist_filename: &str) -> HashSet<String> {
+pub fn load_whitelist(whitelist_filename: &str) -> HashSet<String> {
     let whitelist_reader = BufReader::new(File::open(whitelist_filename).unwrap());
     let whitelist_header: HashSet<String> = whitelist_reader.lines().map(|f| f.unwrap()).collect();
     whitelist_header
