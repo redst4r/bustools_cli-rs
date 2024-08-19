@@ -220,9 +220,9 @@ pub fn make_ecs(busfile: &str, mapping_mode: MappingMode) -> CUHistogram {
         "Total CB-UMI {}, Multimapped {} ({}%), Discarded/Inconsistent {} ({}%)",
         total,
         multimapped,
-        (multimapped as f32) / (total as f32),
+        100.0 * (multimapped as f32) / (total as f32),
         inconsistent,
-        (inconsistent as f32) / (total as f32)
+        100.0 * (inconsistent as f32) / (total as f32)
     );
     h
 }
